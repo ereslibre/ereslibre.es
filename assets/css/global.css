@@ -1,0 +1,23 @@
+.message p:last-child {
+    margin-bottom: 0;
+}
+
+.front-container .side-by-side {
+    vertical-align: top;
+    display: inline-block;
+    margin-right: 4rem;
+    min-width: 20rem;
+}
+
+.content.front-container {
+    max-width: none !important;
+}
+
+.post-preview {
+    margin-bottom: 2rem;
+}
+
+pre.example, pre.src {
+    white-space: pre;
+    overflow-x: auto;
+}

@@ -1,0 +1,4 @@
+#+title: emacs
+
+Some notes regarding my ~emacs~ usage. Mostly for my future self, but if you
+find anything useful feel free to take it!

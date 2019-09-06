@@ -1,0 +1,14 @@
+img#avatar {
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+}
+@media (min-width: 48em) {
+    img#avatar {
+        margin-left: 0 !important;
+    }
+}
+
+.sidebar i {
+    margin-right: 10px;
+}
