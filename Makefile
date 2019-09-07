@@ -1,8 +1,8 @@
-gen: clean
+gen:
 	emacs -L $(PWD) --batch --script init.el
 
 .ONESHELL:
-publish: gen
+publish: clean gen
 	pushd public_html
 	git init
 	git add .
