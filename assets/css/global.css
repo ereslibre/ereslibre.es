@@ -11,6 +11,7 @@
 
 .content.front-container {
     max-width: none !important;
+    overflow-x: hidden;
 }
 
 .post-preview {
