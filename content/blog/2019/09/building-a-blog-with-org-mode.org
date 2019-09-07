@@ -2,7 +2,7 @@
 #+date: <2019-09-06 vie 20:00>
 
 It has been a while since I blogged for the last time. My blog was
-old, and I have been avoiding redesigning my personal site for a very
+old, and I have been avoiding the redesign of my personal site for a very
 long time now.
 
 I don't plan to port old blog posts, so I'll [[https://oldwords.ereslibre.es][keep them as they are]].
