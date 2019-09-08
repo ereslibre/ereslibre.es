@@ -17,6 +17,14 @@
                "</body>
               </html>")))
 
+(eval-after-load "ox-rss"
+  '(defun org-rss-final-function (contents backend info)
+     "Prettify the RSS output. No indent-region."
+     (with-temp-buffer
+       (xml-mode)
+       (insert contents)
+       (buffer-substring-no-properties (point-min) (point-max)))))
+
 (defun ereslibre/pre-postamble (type info)
   (with-temp-buffer
     (insert-file-contents (plist-get info (intern (format ":html-%s" type))))
