@@ -79,9 +79,10 @@
           (date (org-publish-find-date entry (ereslibre/website-project)))
           (link (concat (file-name-sans-extension entry) ".html"))
           (contents (with-temp-buffer
-                          (insert-file-contents (concat (file-name-as-directory "content") entry))
-                          (replace-regexp "^" "  ")
-                          (buffer-string))))
+                      (insert-file-contents (concat (file-name-as-directory "content") entry))
+                      (replace-regexp "^#\\+.*" "")
+                      (replace-regexp "^" "  ")
+                      (buffer-string))))
       (with-temp-buffer
         (insert (format "* [[file:%s][%s]]\n" entry title))
         (insert contents)
@@ -92,8 +93,9 @@
 
 (defun ereslibre/generate-org-rss-feed (list)
   (let ((blog-entries (seq-filter (apply-partially 'ereslibre/is-entry-of-type 'blog) (cdr list))))
-    (let ((rss-contents (mapconcat 'ereslibre/rss-entry blog-entries "\n")))
-      (write-region rss-contents nil "./content/blog/feed.org"))))
+    (let* ((rss-contents (mapconcat 'ereslibre/rss-entry blog-entries "\n\n"))
+           (full-rss-contents (concat "#+title: ereslibre.es\n\n" rss-contents)))
+      (write-region full-rss-contents nil "./content/blog/feed.org"))))
 
 (defun ereslibre/sitemap (title list)
   (progn (ereslibre/generate-org-rss-feed list)
