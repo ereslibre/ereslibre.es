@@ -221,6 +221,7 @@ time in `current-time' format."
          :html-link-org-files-as-html t
          :rss-feed-url "https://ereslibre.es/blog/feed.xml"
          :rss-extension "xml"
+         :section-numbers nil
          :publishing-directory "./public_html/"
          :exclude ".*"
          :include ("blog/feed.org")
