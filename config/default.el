@@ -80,15 +80,14 @@
           (link (concat (file-name-sans-extension entry) ".html"))
           (contents (with-temp-buffer
                       (insert-file-contents (concat (file-name-as-directory "content") entry))
-                      (replace-regexp "^#\\+.*" "")
-                      (replace-regexp "^" "  ")
+                      (replace-regexp "^\\*" "**")
                       (buffer-string))))
       (with-temp-buffer
         (insert (format "* [[file:%s][%s]]\n" entry title))
-        (insert contents)
-        (org-set-property "ID" "some-id")
         (org-set-property "RSS_PERMALINK" link)
         (org-set-property "PUBDATE" (format-time-string "%Y-%m-%d" date))
+        (org-id-get-create)
+        (insert contents)
         (buffer-string)))))
 
 (defun ereslibre/generate-org-rss-feed (list)
@@ -173,6 +172,7 @@ time in `current-time' format."
          :html-postamble ,(concat (getenv "PWD") "/templates/postamble.html")
          :html-doctype "html5"
          :html-html5-fancy t
+         :html-link-use-abs-url t
          :htmlized-source t
          :title "ereslibre.es"
          :with-toc nil
@@ -208,11 +208,14 @@ time in `current-time' format."
          :base-extension "org"
          :html-link-home "https://ereslibre.es/"
          :html-link-use-abs-url t
+         :html-link-org-files-as-html t
          :rss-feed-url "https://ereslibre.es/blog/feed.xml"
          :rss-extension "xml"
          :publishing-directory "./public_html/"
          :exclude ".*"
          :include ("blog/feed.org")
+         :sitemap-sort-files 'anti-chronologically
+         :sitemap-style 'list
          :author "Rafael Fernández López"
          :email "ereslibre@ereslibre.es"
          :publishing-function org-rss-publish-to-rss)))
