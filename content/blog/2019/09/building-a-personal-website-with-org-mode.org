@@ -1,4 +1,4 @@
-#+title: Building a blog with org-mode
+#+title: Building a personal website with org-mode
 #+date: <2019-09-06 vie 20:00>
 
 It has been a while since I blogged for the last time. My blog was
@@ -19,30 +19,25 @@ I had some fun along the way with emacs lisp and I'll explain a little
 what I think are the most important points of my setup.
 
 * Notes
-
 Notes are pages meant to be alive and changing over time. Annotations
 for my future self mainly; posted in the public just in case they help
 someone else. Undated.
 
 * Blog
-
 Exactly. Blog posts are what you think they are. Once published, not usually
 updated over time. Dated.
 
 * Front page
-
 The front page is really simple: it contains a list of all the notes
 and blog entries.
 
 It is dynamically generated from the structure of the project.
 
 * RSS
-
 RSS is an XML feed that only applies to blog posts. It is dynamically
 generated as well.
 
 * Arbitrary static pages
-
 The [[file:../../../contact.org][contact page]] is a good example of an arbitrary static page.
 
 These pages are not included in the list of blog posts or notes. They
