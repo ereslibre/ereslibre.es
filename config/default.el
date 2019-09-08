@@ -82,7 +82,7 @@
                       (insert-file-contents (concat (file-name-as-directory "content") entry))
                       (replace-regexp "^\\*" "**")
                       (beginning-of-buffer)
-                      (replace-regexp "^#\\+.*" "")
+                      (replace-regexp "^#\\+\\(title\\|date\\).*" "")
                       (buffer-string))))
       (with-temp-buffer
         (insert (format "* [[file:%s][%s]]\n" entry title))
