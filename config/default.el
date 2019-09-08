@@ -77,9 +77,15 @@
   (let ((entry (plist-get (car entry) :entry)))
     (let ((title (org-publish-find-title entry (ereslibre/website-project)))
           (date (org-publish-find-date entry (ereslibre/website-project)))
-          (link (concat (file-name-sans-extension entry) ".html")))
+          (link (concat (file-name-sans-extension entry) ".html"))
+          (contents (with-temp-buffer
+                          (insert-file-contents (concat (file-name-as-directory "content") entry))
+                          (replace-regexp "^" "  ")
+                          (buffer-string))))
       (with-temp-buffer
-        (insert (format "* [[file:%s][%s]]" entry title))
+        (insert (format "* [[file:%s][%s]]\n" entry title))
+        (insert contents)
+        (org-set-property "ID" "some-id")
         (org-set-property "RSS_PERMALINK" link)
         (org-set-property "PUBDATE" (format-time-string "%Y-%m-%d" date))
         (buffer-string)))))
@@ -205,5 +211,6 @@ time in `current-time' format."
          :publishing-directory "./public_html/"
          :exclude ".*"
          :include ("blog/feed.org")
-         :with-author nil
+         :author "Rafael Fernández López"
+         :email "ereslibre@ereslibre.es"
          :publishing-function org-rss-publish-to-rss)))

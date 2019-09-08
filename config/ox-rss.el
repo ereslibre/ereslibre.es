@@ -282,7 +282,7 @@ communication channel."
 	    (org-rss-build-categories headline info) "\n"
 	    "<description><![CDATA[%s]]></description>\n"
 	    "</item>\n")
-	   title publink email author guid pubdate contents))))))
+	   title publink author email guid pubdate contents))))))
 
 (defun org-rss-build-categories (headline info)
   "Build categories for the RSS item."
