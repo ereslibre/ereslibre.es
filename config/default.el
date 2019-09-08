@@ -216,10 +216,10 @@ time in `current-time' format."
         ("website-rss"
          :base-directory "./content/"
          :base-extension "org"
-         :html-link-home "https://ereslibre.es/"
+         :html-link-home "https://www.ereslibre.es/"
          :html-link-use-abs-url t
-         :html-link-org-files-as-html t
-         :rss-feed-url "https://ereslibre.es/blog/feed.xml"
+         :htmlized-source t
+         :rss-feed-url "https://www.ereslibre.es/blog/feed.xml"
          :rss-extension "xml"
          :section-numbers nil
          :publishing-directory "./public_html/"

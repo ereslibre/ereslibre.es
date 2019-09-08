@@ -276,13 +276,12 @@ communication channel."
 	    "<item>\n"
 	    "<title>%s</title>\n"
 	    "<link>%s</link>\n"
-	    "<author>(%s) %s</author>\n"
 	    "<guid isPermaLink=\"false\">%s</guid>\n"
 	    "<pubDate>%s</pubDate>\n"
 	    (org-rss-build-categories headline info) "\n"
 	    "<description><![CDATA[%s]]></description>\n"
 	    "</item>\n")
-	   title publink email author guid pubdate contents))))))
+	   title publink guid pubdate contents))))))
 
 (defun org-rss-build-categories (headline info)
   "Build categories for the RSS item."
