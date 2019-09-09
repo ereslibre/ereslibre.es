@@ -18,30 +18,359 @@ here we are.
 I had some fun along the way with emacs lisp and I'll explain a little
 what I think are the most important points of my setup.
 
-* Notes
+* Structure
+
+** Notes
 Notes are pages meant to be alive and changing over time. Annotations
 for my future self mainly; posted in the public just in case they help
 someone else. Undated.
 
-* Blog
+Notes live under ~content/notes~.
+
+** Blog
+
 Exactly. Blog posts are what you think they are. Once published, not usually
 updated over time. Dated.
 
-* Front page
+Blog entries live under ~content/blog/<year>/<month>/post-name.org~.
+
+** Front page
+
 The front page is really simple: it contains a list of all the notes
 and blog entries.
 
 It is dynamically generated from the structure of the project.
 
-* RSS
-RSS is an XML feed that only applies to blog posts. It is dynamically
-generated as well.
+** RSS
 
-* Arbitrary static pages
+RSS is an XML feed that only applies to blog posts.
+
+It is dynamically generated as well.
+
+** Arbitrary static pages
+
 The [[file:../../../contact.org][contact page]] is a good example of an arbitrary static page.
 
 These pages are not included in the list of blog posts or notes. They
 are linked from the template.
+
+* Generation
+
+The generation phase happens calling to ~emacs~ in batch mode, like
+so:
+
+#+BEGIN_SRC bash
+emacs -L $(PWD) --batch --script init.el
+#+END_SRC
+
+~init.el~ is a simple initialization script that will load all elisp
+files inside ~config~. It will then call to ~(org-publish-all t)~ that
+will perform all the magic.
+
+** ~org-publish~ project ~alist~
+
+Defined in ~config/default.el~ along with some customization functions.
+
+*** ~website-content~
+
+Published using ~org-html-publish-to-html~ is what will generate the
+HTML files out of org files.
+
+**** Sitemap generation: ~content/index.org~
+
+Taking advantage of the sitemap functionality to generate the
+~content/index.org~ and the ~content/blog/feed.org~ files before the
+real publishing to HTML happens. The ~sitemap-function~ of the
+~website-content~ project is set to ~ereslibre/sitemap~, this looks
+roughly to:
+
+#+BEGIN_SRC elisp
+(defun ereslibre/sitemap (title list)
+  (progn (ereslibre/generate-org-rss-feed list)
+         (format "#+OPTIONS: title:nil\n
+                  #+BEGIN_EXPORT html\n
+                  <div class=\"content container front-container\">
+                    <div class=\"side-by-side\">
+                      <h1 class=\"post-title\">Notes</h1><hr/>
+                      %s
+                    </div>
+                    <div class=\"side-by-side\">
+                      <h1 class=\"post-title\">Blog</h1><hr/>
+                      %s
+                    </div>
+                  </div>\n
+                  #+END_EXPORT"
+                 (ereslibre/all-entries 'notes list)
+                 (ereslibre/all-entries 'blog list))))
+#+END_SRC
+
+Writing straight HTML here helps in getting the desired HTML layout
+easier. This will be generated anyway, and I don't have to fiddle with
+this anymore -- I hope!
+
+Take the first ~progn~ call to ~ereslibre/generate-org-rss-feed~ into
+account, we'll check what it does later.
+
+Each sitemap entry is formatted using ~ereslibre/sitemap-format-entry~
+that is creating the proper org link, mapped as HTML:
+
+#+BEGIN_SRC elisp
+(defun ereslibre/sitemap-format-entry (entry style project)
+  (let ((date (ereslibre/org-publish-find-explicit-date entry project)))
+    `(:content ,(format "<div class=\"post-preview\">
+                            <h2 class=\"post-title\">%s</h2>
+                            <span class=\"post-date\">%s</span>
+                         </div>"
+                        (org-export-string-as (format "[[file:%s][%s]]" entry (org-publish-find-title entry project)) 'html t)
+                        (if date
+                            (format-time-string "%Y-%m-%d" date)
+                          "&nbsp;"))
+      :entry ,entry)))
+#+END_SRC
+
+**** Feed RSS generation: ~content/blog/feed.org~
+
+~ox-rss~ expects a single file with all blog posts, and this is not
+how my set up works, so I decided I would autogenerate the mentioned
+~feed.org~ file, but this has some caveats. Keep reading!
+
+The format ~ox-rss~ expects is of the form:
+
+#+BEGIN_SRC org
+ #+title: ereslibre.es
+
+ * [[file:year/month/some-post.org][Some post]]
+  :PROPERTIES:
+  :RSS_PERMALINK: blog/year/month/some-post.html
+  :PUBDATE:  2019-09-06
+  :ID:       0b382fe7-f943-4997-8568-28179abe8f23
+  :END:
+ Blog post contents, or description.
+
+ * [[file:year/month/some-other-post.org][Some other post]]
+  :PROPERTIES:
+  :RSS_PERMALINK: blog/year/month/some-other-post.html
+  :PUBDATE:  2019-09-06
+  :ID:       d0d46dcf-ae23-42e5-b279-b17956b3d82a
+  :END:
+ Blog post contents, or description.
+#+END_SRC
+
+The call on ~ereslibre/sitemap~ to ~ereslibre/generate-org-rss-feed~
+is what make the RSS feed be generated. An org file will be created, with
+the contents of all blog posts.
+
+An interesting part of the RSS generation is that it filters out all
+non-blog entries, as well as the ~ereslibre/rss-entry~ implementation.
+
+The ~ereslibre/rss-entry~ function will perform several steps worth
+mentioning:
+
+- Create a temporary buffer
+- Insert the contents of the target org file inside this temporary
+  buffer
+- Make all headings have an extra ~*~. Directly inserting the target
+  org file can make new toplevel items on the RSS feed that will be
+  interpreted as posts of their own. By adding an extra ~*~ to all
+  headings, we ensure that no toplevel entries are included.
+- Transcode embedded links to other org files. Since we are copying
+  and pasting the contents of a file that is in other subdirectory
+  (~content/blog/year/month~), all its relative references to other
+  org files, or any kind of relative reference will be broken (we will
+  be writing the ~content/blog/feed.org~ file).
+  - ~ereslibre/path-relative-from-to-relative-to~ rewrites a relative
+    path from the original directory, to a relative path from the
+    target directory. This is used only for the toplevel entries in
+    ~feed.org~, and for correctness, since it's not really used when
+    publishing -- as far as I can tell.
+  - Relative links like ~../../../contact.html~ are weird at best
+    for RSS readers, so all ~[file:]~ occurrences will be transcoded
+    into a ~[https://html-link-home/]~ link that works from any RSS
+    reader.
+    - Worth noting that the current approach is not safe: a blind
+      ~replace-match~ is **not** correct, because it will ignore
+      ~BEGIN_EXAMPLE~ or ~BEGIN_SRC~ blocks, so this is yet to be
+      fixed, by using ~org-element~ natively, skipping those
+      blocks, and performing the substitution only on the regular
+      content.
+
+*** ~website-assets~
+
+Published using ~org-publish-attachment~. This will copy all assets
+from ~assets~ inside ~public_html/assets~. Strictly template related
+assets.
+
+*** ~website-content-assets~
+
+Published using ~org-publish-attachment~. This will copy all assets
+from ~assets~ inside ~public_html/assets~. Assets related to blog
+posts or pages themselves (that live under ~content~).
+
+*** ~website-rss~
+
+RSS generation using the auto generated ~blog/feed.org~ file, that was
+created during the ~website-content~ publishing. It will only generate
+a target ~public_html/blog/feed.xml~ with a list of all the available
+blog posts.
+
+* Publishing
+
+I wanted something really simple. I migrated my whole website to
+[[https://www.netlify.com][Netlify]] and connected it to my [[https://github.com/ereslibre/ereslibre.es][GitHub's website repository]]. When I run
+a ~make publish~, all contents get generated, and the ~Makefile~ tells
+the rest:
+
+#+BEGIN_SRC makefile
+.ONESHELL:
+publish: clean gen
+	pushd public_html
+	git init
+	git add .
+	git commit --no-gpg-sign -a -m "Publish static site"
+	git remote add origin git@github.com:ereslibre/ereslibre.es
+	git push -f origin master:publish
+	popd
+
+clean:
+	rm -rf public_html
+#+END_SRC
+
+Contents will be pushed to a branch in that repo called ~publish~, so
+Netlify will publish the website right after.
+
+* Caveats found
+
+Some, but I will mention the most relevant ones only.
+
+** RSS with broken ~<pre>~ in ~CDATA~ sections
+
+When creating the RSS ~feed.org~ file, ~ox-rss~ has a function that
+runs when the buffer has all the XML contents already written:
+
+#+BEGIN_SRC elisp
+(defun org-rss-final-function (contents backend info)
+  "Prettify the RSS output."
+  (with-temp-buffer
+    (xml-mode)
+    (insert contents)
+    (indent-region (point-min) (point-max))
+    (buffer-substring-no-properties (point-min) (point-max))))
+#+END_SRC
+
+Turns out, ~(indent-region (point-min) (point-max))~ will indent
+something like:
+
+#+BEGIN_SRC html
+<description><![CDATA[<p>
+<pre class="example">
+require (
+  k8s.io/kubernetes v1.16.0-beta.1
+)
+</pre>
+]]></description>
+#+END_SRC
+
+to something like:
+
+#+BEGIN_SRC html
+<description><![CDATA[<p>
+<pre class="example">
+require (
+k8s.io/kubernetes v1.16.0-beta.1
+)
+</pre>
+]]></description>
+#+END_SRC
+
+So, code examples wouldn't look that nice on RSS readers. I fixed that by
+defining my own final function that does not call ~(indent-region)~,
+after all, I don't expect anyone to read the XML directly.
+
+#+BEGIN_SRC elisp
+(eval-after-load "ox-rss"
+  '(defun org-rss-final-function (contents backend info)
+     "Prettify the RSS output. No indent-region."
+     (with-temp-buffer
+       (xml-mode)
+       (insert contents)
+       (buffer-substring-no-properties (point-min) (point-max)))))
+#+END_SRC
+
+** ~ox-publish~ insists in adding certain elements
+
+*** The global template case
+
+Even when setting certain configurations like
+~:html-head-include-scripts~ or ~:html-head-include-default-style~ to
+~nil~, I was still getting some template related elements that I could
+not remove with configuration settings, so I wrote my really simple
+~org-html-template~.
+
+*** The ~<p>~ case
+
+When creating the ~index.org~ contents, I started with the approach of
+using ~@@html:some-html@@[[file:some-org-file.org][A link]]@@html:other-html@@~, so I could
+deliberately use org's feature of linking other files, while having
+control of the HTML directly to create the expected structure.
+
+This didn't go well, as an extra ~<p>~ entity was printed at the
+beginning of the page, and moved the content a little. I could have
+fixed that with some CSS sorcery, but I didn't want extra output in my
+website either.
+
+Then, I took the path that is currently used, use ~#+BEGIN_EXPORT
+html~ and generate the org links manually while still relying on org's
+linking:
+
+#+BEGIN_SRC elisp
+(org-export-string-as (format "[[file:%s][%s]]" entry (org-publish-find-title entry project)) 'html t)
+#+END_SRC
+
+*** ~<title>~'s inside ~<head>~ with non-optimal contents
+
+I didn't fix this issue, and what I did was to change the title of
+this post. This post was previously named:
+
+#+BEGIN_SRC org
+ #+title: Building a personal website with ~org-mode~
+#+END_SRC
+
+and I had to rename it to:
+
+#+BEGIN_SRC org
+ #+title: Building a personal website with org-mode
+#+END_SRC
+
+Despite the discussion whether titles should be consistent and not
+include special formatting, what the first ~title~ did output in the
+generated HTML was:
+
+#+BEGIN_SRC html
+<head>
+  <title>Building a personal website with <code>org-mode</code></title>
+</head>
+#+END_SRC
+
+I'm fairly sure this is a bug, but the question is then, what it
+should be:
+
+#+BEGIN_SRC html
+<head>
+  <title>Building a personal website with ~org-mode~</title>
+</head>
+#+END_SRC
+
+or
+
+#+BEGIN_SRC html
+<head>
+  <title>Building a personal website with org-mode</title>
+</head>
+#+END_SRC
+
+Since the solution was really easy, and I was not completely sure I
+want headlines with different formatting, I ignored this problem and
+removed the special formatting.
 
 -----
 
