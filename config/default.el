@@ -81,24 +81,52 @@
 (defun ereslibre/website-project ()
   (assoc "website-content" org-publish-project-alist))
 
+(defun ereslibre/rss-project ()
+  (assoc "website-rss" org-publish-project-alist))
+
 (defun ereslibre/rss-entry (entry)
-  (let ((entry (plist-get (car entry) :entry)))
-    (let ((title (org-publish-find-title entry (ereslibre/website-project)))
-          (date (org-publish-find-date entry (ereslibre/website-project)))
-          (link (concat (file-name-sans-extension entry) ".html"))
-          (contents (with-temp-buffer
-                      (insert-file-contents (concat (file-name-as-directory "content") entry))
-                      (replace-regexp "^\\*" "**")
-                      (beginning-of-buffer)
-                      (replace-regexp "^#\\+\\(title\\|date\\).*" "")
-                      (buffer-string))))
-      (with-temp-buffer
-        (insert (format "* [[file:%s][%s]]\n" entry title))
-        (org-set-property "RSS_PERMALINK" link)
-        (org-set-property "PUBDATE" (format-time-string "%Y-%m-%d" date))
-        (org-id-get-create)
-        (insert contents)
-        (buffer-string)))))
+  (let* ((entry (plist-get (car entry) :entry))
+         (title (org-publish-find-title entry (ereslibre/website-project)))
+         (date (org-publish-find-date entry (ereslibre/website-project)))
+         (link (concat (file-name-sans-extension entry) ".html"))
+         (source-file (concat (file-name-as-directory "content") entry))
+         (source-file-dir (file-name-directory source-file))
+         (home-url-prefix (plist-get (cdr (ereslibre/rss-project)) :html-link-home))
+         (contents (with-temp-buffer
+                     (insert-file-contents source-file)
+                     (beginning-of-buffer)
+                     ;; lower headline importance on inserted org (top level headlines are interpreted by ox-rss as entries)
+                     ;; by performing this operation, we lower all headlines and subheadlines importance by one
+                     (save-excursion
+                       (while (re-search-forward "^\\*" nil t)
+                         (replace-match "**")))
+                     ;; remove certain attributes from inserted org file
+                     (save-excursion
+                       (while (re-search-forward "^#\\+\\(title\\|date\\).*" nil t)
+                         (replace-match "")))
+                     ;; transcode embedded links to files -- e.g. expand relative paths
+                     (save-excursion
+                       (while (re-search-forward "\\[file:\\([^]]+\\)" nil t)
+                         (replace-match
+                          (concat "[" home-url-prefix
+                                  (file-name-sans-extension
+                                   (file-relative-name
+                                    (expand-file-name (match-string 1) source-file-dir)
+                                    "content"))
+                                  ".html"))))
+                     (buffer-string))))
+    (with-temp-buffer
+      (insert (format "* [[file:%s][%s]]\n" (ereslibre/path-relative-from-to-relative-to entry "content" "content/blog") title))
+      (org-set-property "RSS_PERMALINK" link)
+      (org-set-property "PUBDATE" (format-time-string "%Y-%m-%d" date))
+      (org-id-get-create)
+      (insert contents)
+      (buffer-string))))
+
+(defun ereslibre/path-relative-from-to-relative-to (path from to)
+  (let* ((from-absolute (expand-file-name path from))
+         (to-relative (file-relative-name from-absolute to)))
+    to-relative))
 
 (defun ereslibre/generate-org-rss-feed (list)
   (let ((blog-entries (seq-filter (apply-partially 'ereslibre/is-entry-of-type 'blog) (cdr list))))
