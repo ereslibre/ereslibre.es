@@ -136,24 +136,24 @@ how my set up works, so I decided I would autogenerate the mentioned
 
 The format ~ox-rss~ expects is of the form:
 
-#+BEGIN_SRC org
- #+title: ereslibre.es
+#+BEGIN_SRC
+,#+title: ereslibre.es
 
- * [[ file:year/month/some-post.org][Some post]]
-  :PROPERTIES:
-  :RSS_PERMALINK: blog/year/month/some-post.html
-  :PUBDATE:  2019-09-06
-  :ID:       0b382fe7-f943-4997-8568-28179abe8f23
-  :END:
- Blog post contents, or description.
+,* [[file:year/month/some-post.org][Some post]]
+ :PROPERTIES:
+ :RSS_PERMALINK: blog/year/month/some-post.html
+ :PUBDATE:  2019-09-06
+ :ID:       0b382fe7-f943-4997-8568-28179abe8f23
+ :END:
+Blog post contents, or description.
 
- * [[ file:year/month/some-other-post.org][Some other post]]
-  :PROPERTIES:
-  :RSS_PERMALINK: blog/year/month/some-other-post.html
-  :PUBDATE:  2019-09-06
-  :ID:       d0d46dcf-ae23-42e5-b279-b17956b3d82a
-  :END:
- Blog post contents, or description.
+,* [[file:year/month/some-other-post.org][Some other post]]
+ :PROPERTIES:
+ :RSS_PERMALINK: blog/year/month/some-other-post.html
+ :PUBDATE:  2019-09-06
+ :ID:       d0d46dcf-ae23-42e5-b279-b17956b3d82a
+ :END:
+Blog post contents, or description.
 #+END_SRC
 
 The call on ~ereslibre/sitemap~ to ~ereslibre/generate-org-rss-feed~
@@ -169,24 +169,21 @@ mentioning:
 - Create a temporary buffer
 - Insert the contents of the target org file inside this temporary
   buffer
-- Make all headings have an extra ~*~. Directly inserting the target
-  org file can make new toplevel items on the RSS feed that will be
-  interpreted as posts of their own. By adding an extra ~*~ to all
-  headings, we ensure that no toplevel entries are included.
-- Transcode embedded links to other org files. Since we are copying
+- Make all headings have an extra ~*~. Top level headlines are each
+  RSS entry. By this transformation we ensure that we won't have top
+  level headlines when inserting other org file contents.
+- Transcode embedded links to other relative files. Since we are copying
   and pasting the contents of a file that is in other subdirectory
   (~content/blog/year/month~), all its relative references to other
-  org files, or any kind of relative reference will be broken (we will
-  be writing the ~content/blog/feed.org~ file).
+  files will be broken when writing the ~content/blog/feed.org~ file.
   - ~ereslibre/path-relative-from-to-relative-to~ rewrites a relative
     path from the original directory, to a relative path from the
-    target directory. This is used only for the toplevel entries in
-    ~feed.org~, and for correctness, since it's not really used when
-    publishing -- as far as I can tell.
-  - Relative links like ~../../../contact.html~ are weird at best
-    for RSS readers, so all ~[file:]~ occurrences will be transcoded
-    into a ~[https://html-link-home/]~ link that works from any RSS
-    reader.
+    target directory. This is used for the toplevel entries in ~feed.org~
+    and for correctness, since it's not really used when publishing --
+    as far as I can tell.
+  - RSS readers won't know how to handle relative links like
+    ~../../../contact.html~, so all ~[file:some-file]~ occurrences
+    will be transcoded into a ~[https://html-link-home/some-path/some-file]~.
     - Worth noting that the current approach is not safe: a blind
       ~replace-match~ is **not** correct, because it will ignore
       ~BEGIN_EXAMPLE~ or ~BEGIN_SRC~ blocks, so this is yet to be
@@ -332,13 +329,13 @@ I didn't fix this issue, and what I did was to change the title of
 this post. This post was previously named:
 
 #+BEGIN_SRC org
- #+title: Building a personal website with ~org-mode~
+,#+title: Building a personal website with ~org-mode~
 #+END_SRC
 
 and I had to rename it to:
 
 #+BEGIN_SRC org
- #+title: Building a personal website with org-mode
+,#+title: Building a personal website with org-mode
 #+END_SRC
 
 Despite the discussion whether titles should be consistent and not
