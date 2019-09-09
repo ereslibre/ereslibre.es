@@ -67,16 +67,16 @@ emacs -L $(PWD) --batch --script init.el
 files inside ~config~. It will then call to ~(org-publish-all t)~ that
 will perform all the magic.
 
-** ~org-publish~ project ~alist~
+** org-publish project alist
 
 Defined in ~config/default.el~ along with some customization functions.
 
-*** ~website-content~
+*** website-content
 
 Published using ~org-html-publish-to-html~ is what will generate the
 HTML files out of org files.
 
-**** Sitemap generation: ~content/index.org~
+**** Sitemap generation: content/index.org
 
 Taking advantage of the sitemap functionality to generate the
 ~content/index.org~ and the ~content/blog/feed.org~ files before the
@@ -128,7 +128,7 @@ that is creating the proper org link, mapped as HTML:
       :entry ,entry)))
 #+END_SRC
 
-**** Feed RSS generation: ~content/blog/feed.org~
+**** Feed RSS generation: content/blog/feed.org
 
 ~ox-rss~ expects a single file with all blog posts, and this is not
 how my set up works, so I decided I would autogenerate the mentioned
@@ -139,7 +139,7 @@ The format ~ox-rss~ expects is of the form:
 #+BEGIN_SRC org
  #+title: ereslibre.es
 
- * [[file:year/month/some-post.org][Some post]]
+ * [[ file:year/month/some-post.org][Some post]]
   :PROPERTIES:
   :RSS_PERMALINK: blog/year/month/some-post.html
   :PUBDATE:  2019-09-06
@@ -147,7 +147,7 @@ The format ~ox-rss~ expects is of the form:
   :END:
  Blog post contents, or description.
 
- * [[file:year/month/some-other-post.org][Some other post]]
+ * [[ file:year/month/some-other-post.org][Some other post]]
   :PROPERTIES:
   :RSS_PERMALINK: blog/year/month/some-other-post.html
   :PUBDATE:  2019-09-06
@@ -194,19 +194,19 @@ mentioning:
       blocks, and performing the substitution only on the regular
       content.
 
-*** ~website-assets~
+*** website-assets
 
 Published using ~org-publish-attachment~. This will copy all assets
 from ~assets~ inside ~public_html/assets~. Strictly template related
 assets.
 
-*** ~website-content-assets~
+*** website-content-assets
 
 Published using ~org-publish-attachment~. This will copy all assets
 from ~assets~ inside ~public_html/assets~. Assets related to blog
 posts or pages themselves (that live under ~content~).
 
-*** ~website-rss~
+*** website-rss
 
 RSS generation using the auto generated ~blog/feed.org~ file, that was
 created during the ~website-content~ publishing. It will only generate
@@ -242,7 +242,7 @@ Netlify will publish the website right after.
 
 Some, but I will mention the most relevant ones only.
 
-** RSS with broken ~<pre>~ in ~CDATA~ sections
+** RSS with broken <pre> in CDATA sections
 
 When creating the RSS ~feed.org~ file, ~ox-rss~ has a function that
 runs when the buffer has all the XML contents already written:
@@ -296,7 +296,7 @@ after all, I don't expect anyone to read the XML directly.
        (buffer-substring-no-properties (point-min) (point-max)))))
 #+END_SRC
 
-** ~ox-publish~ insists in adding certain elements
+** ox-publish insists in adding certain elements
 
 *** The global template case
 
@@ -306,7 +306,7 @@ Even when setting certain configurations like
 not remove with configuration settings, so I wrote my really simple
 ~org-html-template~.
 
-*** The ~<p>~ case
+*** The <p> case
 
 When creating the ~index.org~ contents, I started with the approach of
 using ~@@html:some-html@@[[file:some-org-file.org][A link]]@@html:other-html@@~, so I could
@@ -326,7 +326,7 @@ linking:
 (org-export-string-as (format "[[file:%s][%s]]" entry (org-publish-find-title entry project)) 'html t)
 #+END_SRC
 
-*** ~<title>~'s inside ~<head>~ with non-optimal contents
+*** <title>'s inside <head> with non-optimal contents
 
 I didn't fix this issue, and what I did was to change the title of
 this post. This post was previously named:
