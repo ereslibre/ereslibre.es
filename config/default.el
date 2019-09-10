@@ -109,8 +109,8 @@ XML contents, but indenting will make `<pre>' blocks inside
                      ;; transcode embedded links to files -- e.g. expand relative paths
                      (save-excursion
                        (while (re-search-forward "\\[file:\\([^]]+\\)" nil t)
-                         (let ((match (match-string 1))
-                               (element (org-element-at-point)))
+                         (let* ((match (match-string 1))
+                                (element (save-match-data (org-element-at-point))))
                            (when (not (or (eq (org-element-type element) 'example-block)
                                           (eq (org-element-type element) 'src-block)))
                              (replace-match

@@ -177,7 +177,6 @@ The ~ereslibre/rss-entry~ function looks like:
          (source-file-dir (file-name-directory source-file))
          (home-url-prefix (plist-get (cdr (ereslibre/rss-project)) :html-link-home))
          (contents (with-temp-buffer
-                     (org-mode)
                      (insert-file-contents source-file)
                      (beginning-of-buffer)
                      ;; lower headline importance on inserted org (top level headlines are interpreted by ox-rss as entries)
@@ -192,8 +191,8 @@ The ~ereslibre/rss-entry~ function looks like:
                      ;; transcode embedded links to files -- e.g. expand relative paths
                      (save-excursion
                        (while (re-search-forward "\\[file:\\([^]]+\\)" nil t)
-                         (let ((match (match-string 1))
-                               (element (org-element-at-point)))
+                         (let* ((match (match-string 1))
+                                (element (save-match-data (org-element-at-point))))
                            (when (not (or (eq (org-element-type element) 'example-block)
                                           (eq (org-element-type element) 'src-block)))
                              (replace-match
