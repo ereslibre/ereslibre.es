@@ -51,21 +51,19 @@ It is dynamically generated as well.
 
 The [[file:../../../contact.org][contact page]] is a good example of an arbitrary static page.
 
-These pages are not included in the list of blog posts or notes. They
-are linked from the template.
+These pages are not included in the list of blog posts or notes.
 
 * Generation
 
-The generation phase happens calling to ~emacs~ in batch mode, like
-so:
+The generation phase is triggered by calling to ~emacs~ in batch mode,
+like so:
 
 #+BEGIN_SRC bash
 emacs -L $(PWD) --batch --script init.el
 #+END_SRC
 
 ~init.el~ is a simple initialization script that will load all elisp
-files inside ~config~. It will then call to ~(org-publish-all t)~ that
-will perform all the magic.
+files inside ~config~. It will then call to ~(org-publish-all t)~.
 
 ** org-publish project alist
 
@@ -73,16 +71,15 @@ Defined in ~config/default.el~ along with some customization functions.
 
 *** website-content
 
-Published using ~org-html-publish-to-html~ is what will generate the
-HTML files out of org files.
+Published using ~org-html-publish-to-html~, will generate the HTML
+files out of org files.
 
-**** Sitemap generation: content/index.org
+**** Sitemap generation: ~content/index.org~
 
-Taking advantage of the sitemap functionality to generate the
-~content/index.org~ and the ~content/blog/feed.org~ files before the
-real publishing to HTML happens. The ~sitemap-function~ of the
-~website-content~ project is set to ~ereslibre/sitemap~, this looks
-roughly to:
+Taking advantage of the sitemap functionality, ~content/index.org~
+and the ~content/blog/feed.org~ files will be automatically
+generarated. The ~sitemap-function~ of the ~website-content~
+project is set to ~ereslibre/sitemap~, this looks like:
 
 #+BEGIN_SRC elisp
 (defun ereslibre/sitemap (title list)
@@ -104,15 +101,15 @@ roughly to:
                  (ereslibre/all-entries 'blog list))))
 #+END_SRC
 
-Writing straight HTML here helps in getting the desired HTML layout
-easier. This will be generated anyway, and I don't have to fiddle with
-this anymore -- I hope!
+Writing raw HTML here helps in getting the desired HTML layout easier.
+This will be automatically generated anyway, and I don't have to
+fiddle with this anymore -- I hope!
 
 Take the first ~progn~ call to ~ereslibre/generate-org-rss-feed~ into
 account, we'll check what it does later.
 
-Each sitemap entry is formatted using ~ereslibre/sitemap-format-entry~
-that is creating the proper org link, mapped as HTML:
+Each sitemap entry is formatted using ~ereslibre/sitemap-format-entry~,
+creating the link to the given entry:
 
 #+BEGIN_SRC elisp
 (defun ereslibre/sitemap-format-entry (entry style project)
@@ -128,11 +125,11 @@ that is creating the proper org link, mapped as HTML:
       :entry ,entry)))
 #+END_SRC
 
-**** Feed RSS generation: content/blog/feed.org
+**** Feed RSS generation: ~content/blog/feed.org~
 
-~ox-rss~ expects a single file with all blog posts, and this is not
-how my set up works, so I decided I would autogenerate the mentioned
-~feed.org~ file, but this has some caveats. Keep reading!
+~ox-rss~ expects a single file with all blog posts, but this is not
+how my set up works, so the ~feed.org~ file will be automatically
+generated -- this has some caveats, though.
 
 The format ~ox-rss~ expects is of the form:
 
@@ -157,21 +154,74 @@ Blog post contents, or description.
 #+END_SRC
 
 The call on ~ereslibre/sitemap~ to ~ereslibre/generate-org-rss-feed~
-is what make the RSS feed be generated. An org file will be created, with
-the contents of all blog posts.
+is what generates the RSS feed contents. ~content/blog/feed.org~ file
+will be created, listing the contents of all blog posts.
 
-An interesting part of the RSS generation is that it filters out all
-non-blog entries, as well as the ~ereslibre/rss-entry~ implementation.
+#+BEGIN_SRC elisp
+(defun ereslibre/generate-org-rss-feed (list)
+  (let ((blog-entries (seq-filter (apply-partially 'ereslibre/is-entry-of-type 'blog) (cdr list))))
+    (let* ((rss-contents (mapconcat 'ereslibre/rss-entry blog-entries "\n\n"))
+           (full-rss-contents (concat "#+title: ereslibre.es\n\n" rss-contents)))
+      (write-region full-rss-contents nil "./content/blog/feed.org"))))
+#+END_SRC
 
-The ~ereslibre/rss-entry~ function will perform several steps worth
-mentioning:
+The ~ereslibre/rss-entry~ function looks like:
 
-- Create a temporary buffer
-- Insert the contents of the target org file inside this temporary
+#+BEGIN_SRC elisp
+(defun ereslibre/rss-entry (entry)
+  (let* ((entry (plist-get (car entry) :entry))
+         (title (org-publish-find-title entry (ereslibre/website-project)))
+         (date (org-publish-find-date entry (ereslibre/website-project)))
+         (link (concat (file-name-sans-extension entry) ".html"))
+         (source-file (concat (file-name-as-directory "content") entry))
+         (source-file-dir (file-name-directory source-file))
+         (home-url-prefix (plist-get (cdr (ereslibre/rss-project)) :html-link-home))
+         (contents (with-temp-buffer
+                     (org-mode)
+                     (insert-file-contents source-file)
+                     (beginning-of-buffer)
+                     ;; lower headline importance on inserted org (top level headlines are interpreted by ox-rss as entries)
+                     ;; by performing this operation, we lower all headlines and subheadlines importance by one
+                     (save-excursion
+                       (while (re-search-forward "^\\*" nil t)
+                         (replace-match "**")))
+                     ;; remove certain attributes from inserted org file
+                     (save-excursion
+                       (while (re-search-forward "^#\\+\\(title\\|date\\).*" nil t)
+                         (replace-match "")))
+                     ;; transcode embedded links to files -- e.g. expand relative paths
+                     (save-excursion
+                       (while (re-search-forward "\\[file:\\([^]]+\\)" nil t)
+                         (let ((match (match-string 1))
+                               (element (org-element-at-point)))
+                           (when (not (or (eq (org-element-type element) 'example-block)
+                                          (eq (org-element-type element) 'src-block)))
+                             (replace-match
+                              (concat "[" home-url-prefix
+                                      (file-name-sans-extension
+                                       (file-relative-name
+                                        (expand-file-name match source-file-dir)
+                                        "content"))
+                                      ".html"))))))
+                     (buffer-string))))
+    (with-temp-buffer
+      (insert (format "* [[file:%s][%s]]\n" (ereslibre/path-relative-from-to-relative-to entry "content" "content/blog") title))
+      (org-set-property "RSS_PERMALINK" link)
+      (org-set-property "PUBDATE" (format-time-string "%Y-%m-%d" date))
+      (org-id-get-create)
+      (insert contents)
+      (buffer-string))))
+#+END_SRC
+
+It is worth mentioning that it:
+
+- Creates a temporary buffer
+- Inserts the contents of the target org file inside this temporary
   buffer
-- Make all headings have an extra ~*~. Top level headlines are each
+- Makes all headings have an extra ~*~. Top level headlines are each
   RSS entry. By this transformation we ensure that we won't have top
-  level headlines when inserting other org file contents.
+  level headlines when inserting other org file contents. All
+  inserted headlines are demoted by one.
 - Transcode embedded links to other relative files. Since we are copying
   and pasting the contents of a file that is in other subdirectory
   (~content/blog/year/month~), all its relative references to other
@@ -183,36 +233,32 @@ mentioning:
     as far as I can tell.
   - RSS readers won't know how to handle relative links like
     ~../../../contact.html~, so all ~[file:some-file]~ occurrences
-    will be transcoded into a ~[https://html-link-home/some-path/some-file]~.
-    - Worth noting that the current approach is not safe: a blind
-      ~replace-match~ is **not** correct, because it will ignore
-      ~BEGIN_EXAMPLE~ or ~BEGIN_SRC~ blocks, so this is yet to be
-      fixed, by using ~org-element~ natively, skipping those
-      blocks, and performing the substitution only on the regular
-      content.
+    will be transcoded into a
+    ~[https://html-link-home/some-path/some-file]~, only if they are
+    not in ~src~ or ~example~ blocks.
 
 *** website-assets
 
 Published using ~org-publish-attachment~. This will copy all assets
-from ~assets~ inside ~public_html/assets~. Strictly template related
-assets.
+from ~assets~ inside ~public_html/assets~. These are strictly template
+related assets.
 
 *** website-content-assets
 
 Published using ~org-publish-attachment~. This will copy all assets
-from ~assets~ inside ~public_html/assets~. Assets related to blog
-posts or pages themselves (that live under ~content~).
+from ~content~ inside ~content~. These are assets related to blog
+posts or pages themselves.
 
 *** website-rss
 
-RSS generation using the auto generated ~blog/feed.org~ file, that was
-created during the ~website-content~ publishing. It will only generate
-a target ~public_html/blog/feed.xml~ with a list of all the available
-blog posts.
+RSS generation using the auto generated ~content/blog/feed.org~ file,
+that was created during the ~website-content~ publishing. It will only
+generate a target ~public_html/blog/feed.xml~ with a list of all the
+available blog posts.
 
 * Publishing
 
-I wanted something really simple. I migrated my whole website to
+I wanted something really minimal. I migrated my whole website to
 [[https://www.netlify.com][Netlify]] and connected it to my [[https://github.com/ereslibre/ereslibre.es][GitHub's website repository]]. When I run
 a ~make publish~, all contents get generated, and the ~Makefile~ tells
 the rest:
@@ -283,16 +329,6 @@ So, code examples wouldn't look that nice on RSS readers. I fixed that by
 defining my own final function that does not call ~(indent-region)~,
 after all, I don't expect anyone to read the XML directly.
 
-#+BEGIN_SRC elisp
-(eval-after-load "ox-rss"
-  '(defun org-rss-final-function (contents backend info)
-     "Prettify the RSS output. No indent-region."
-     (with-temp-buffer
-       (xml-mode)
-       (insert contents)
-       (buffer-substring-no-properties (point-min) (point-max)))))
-#+END_SRC
-
 ** ox-publish insists in adding certain elements
 
 *** The global template case
@@ -303,7 +339,7 @@ Even when setting certain configurations like
 not remove with configuration settings, so I wrote my really simple
 ~org-html-template~.
 
-*** The <p> case
+*** The ~<p>~ case
 
 When creating the ~index.org~ contents, I started with the approach of
 using ~@@html:some-html@@[[file:some-org-file.org][A link]]@@html:other-html@@~, so I could
@@ -323,10 +359,10 @@ linking:
 (org-export-string-as (format "[[file:%s][%s]]" entry (org-publish-find-title entry project)) 'html t)
 #+END_SRC
 
-*** <title>'s inside <head> with non-optimal contents
+*** ~<title>~'s inside ~<head>~ with non-optimal contents
 
-I didn't fix this issue, and what I did was to change the title of
-this post. This post was previously named:
+I didn't fix this issue, what I did instead was to change the title of
+this post. It was previously named:
 
 #+BEGIN_SRC org
 ,#+title: Building a personal website with ~org-mode~
@@ -338,9 +374,7 @@ and I had to rename it to:
 ,#+title: Building a personal website with org-mode
 #+END_SRC
 
-Despite the discussion whether titles should be consistent and not
-include special formatting, what the first ~title~ did output in the
-generated HTML was:
+The first ~title~ output in the generated HTML was:
 
 #+BEGIN_SRC html
 <head>
@@ -367,7 +401,7 @@ or
 
 Since the solution was really easy, and I was not completely sure I
 want headlines with different formatting, I ignored this problem and
-removed the special formatting.
+removed the special formatting from the title of the article.
 
 -----
 
