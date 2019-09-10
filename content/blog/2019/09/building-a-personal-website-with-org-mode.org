@@ -285,7 +285,7 @@ Netlify will publish the website right after.
 
 Some, but I will mention the most relevant ones only.
 
-** RSS with broken <pre> in CDATA sections
+** RSS with broken ~<pre>~ in ~CDATA~ sections
 
 When creating the RSS ~feed.org~ file, ~ox-rss~ has a function that
 runs when the buffer has all the XML contents already written:
