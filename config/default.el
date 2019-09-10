@@ -18,12 +18,13 @@
               </html>")))
 
 (eval-after-load "ox-rss"
-  '(defun org-rss-final-function (contents backend info)
-     "Prettify the RSS output. No indent-region."
-     (with-temp-buffer
-       (xml-mode)
-       (insert contents)
-       (buffer-substring-no-properties (point-min) (point-max)))))
+  '(defun org-rss-final-function (contents _backend _info)
+     "Do nothing.
+
+The original implementation used this function to indent the
+XML contents, but indenting will make `<pre>' blocks inside
+`CDATA' blocks be reindented."
+     contents))
 
 (defun ereslibre/pre-postamble (type info)
   (with-temp-buffer
@@ -93,6 +94,7 @@
          (source-file-dir (file-name-directory source-file))
          (home-url-prefix (plist-get (cdr (ereslibre/rss-project)) :html-link-home))
          (contents (with-temp-buffer
+                     (org-mode)
                      (insert-file-contents source-file)
                      (beginning-of-buffer)
                      ;; lower headline importance on inserted org (top level headlines are interpreted by ox-rss as entries)
@@ -107,13 +109,17 @@
                      ;; transcode embedded links to files -- e.g. expand relative paths
                      (save-excursion
                        (while (re-search-forward "\\[file:\\([^]]+\\)" nil t)
-                         (replace-match
-                          (concat "[" home-url-prefix
-                                  (file-name-sans-extension
-                                   (file-relative-name
-                                    (expand-file-name (match-string 1) source-file-dir)
-                                    "content"))
-                                  ".html"))))
+                         (let ((match (match-string 1))
+                               (element (org-element-at-point)))
+                           (when (not (or (eq (org-element-type element) 'example-block)
+                                          (eq (org-element-type element) 'src-block)))
+                             (replace-match
+                              (concat "[" home-url-prefix
+                                      (file-name-sans-extension
+                                       (file-relative-name
+                                        (expand-file-name match source-file-dir)
+                                        "content"))
+                                      ".html"))))))
                      (buffer-string))))
     (with-temp-buffer
       (insert (format "* [[file:%s][%s]]\n" (ereslibre/path-relative-from-to-relative-to entry "content" "content/blog") title))
