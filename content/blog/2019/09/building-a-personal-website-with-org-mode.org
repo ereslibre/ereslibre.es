@@ -245,7 +245,7 @@ related assets.
 *** website-content-assets
 
 Published using ~org-publish-attachment~. This will copy all assets
-from ~content~ inside ~content~. These are assets related to blog
+from ~content~ to ~public_html~. These are assets related to blog
 posts or pages themselves.
 
 *** website-rss
