@@ -69,7 +69,7 @@ XML contents, but indenting will make `<pre>' blocks inside
     (string-match (format "^%s/" type) entry-link)))
 
 (defun ereslibre/all-entries (type list)
-  (let ((entries (seq-filter (apply-partially 'ereslibre/is-entry-of-type type) (cdr list))))
+  (let ((entries (seq-filter (apply-partially #'ereslibre/is-entry-of-type type) (cdr list))))
     (if (null entries)
         "<p>No entries yet</p>"
         (concat "<div class=\"posts\">"
@@ -97,8 +97,7 @@ XML contents, but indenting will make `<pre>' blocks inside
                      (org-mode)
                      (insert-file-contents source-file)
                      (beginning-of-buffer)
-                     ;; lower headline importance on inserted org (top level headlines are interpreted by ox-rss as entries)
-                     ;; by performing this operation, we lower all headlines and subheadlines importance by one
+                     ;; demote all headlines
                      (save-excursion
                        (while (re-search-forward "^\\*" nil t)
                          (replace-match "**")))
@@ -125,7 +124,6 @@ XML contents, but indenting will make `<pre>' blocks inside
       (insert (format "* [[file:%s][%s]]\n" (ereslibre/path-relative-from-to-relative-to entry "content" "content/blog") title))
       (org-set-property "RSS_PERMALINK" link)
       (org-set-property "PUBDATE" (format-time-string "%Y-%m-%d" date))
-      (org-id-get-create)
       (insert contents)
       (buffer-string))))
 
@@ -135,8 +133,8 @@ XML contents, but indenting will make `<pre>' blocks inside
     to-relative))
 
 (defun ereslibre/generate-org-rss-feed (list)
-  (let ((blog-entries (seq-filter (apply-partially 'ereslibre/is-entry-of-type 'blog) (cdr list))))
-    (let* ((rss-contents (mapconcat 'ereslibre/rss-entry blog-entries "\n\n"))
+  (let ((blog-entries (seq-filter (apply-partially #'ereslibre/is-entry-of-type 'blog) (cdr list))))
+    (let* ((rss-contents (mapconcat #'ereslibre/rss-entry blog-entries "\n\n"))
            (full-rss-contents (concat "#+title: ereslibre.es\n\n" rss-contents)))
       (write-region full-rss-contents nil "./content/blog/feed.org"))))
 
@@ -187,6 +185,7 @@ time in `current-time' format."
 			(and (org-string-nw-p value)
 			     (org-time-string-to-time value)))))))))))
 
+(setq org-rss-use-entry-url-as-guid t)
 (setq org-publish-project-alist
       `(("website"
          :components ("website-content" "website-assets" "website-rss"))
@@ -254,6 +253,7 @@ time in `current-time' format."
          :html-link-use-abs-url t
          :htmlized-source t
          :rss-feed-url "https://www.ereslibre.es/blog/feed.xml"
+         :rss-image-url "http://s.gravatar.com/avatar/bdc4bd9b9b18388588ed2273adaee8a6?s=128"
          :rss-extension "xml"
          :section-numbers nil
          :publishing-directory "./public_html/"
@@ -263,4 +263,5 @@ time in `current-time' format."
          :sitemap-style 'list
          :author "Rafael Fernández López"
          :email "ereslibre@ereslibre.es"
+         :description "Libre Software lover. Hacker."
          :publishing-function org-rss-publish-to-rss)))
