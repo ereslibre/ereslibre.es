@@ -77,9 +77,9 @@ files out of org files.
 **** Sitemap generation: ~content/index.org~
 
 Taking advantage of the sitemap functionality, ~content/index.org~
-and the ~content/blog/feed.org~ files will be automatically
-generarated. The ~sitemap-function~ of the ~website-content~
-project is set to ~ereslibre/sitemap~, this looks like:
+and the ~content/blog/feed.org~ files will be automatically generated.
+The ~sitemap-function~ of the ~website-content~ project is set to
+~ereslibre/sitemap~. It looks like:
 
 #+BEGIN_SRC elisp
 (defun ereslibre/sitemap (title list)
@@ -131,7 +131,7 @@ creating the link to the given entry:
 how my set up works, so the ~feed.org~ file will be automatically
 generated -- this has some caveats, though.
 
-The format ~ox-rss~ expects is of the form:
+The contents ~ox-rss~ expects are of the form:
 
 #+BEGIN_SRC
 ,#+title: ereslibre.es
@@ -159,8 +159,8 @@ will be created, listing the contents of all blog posts.
 
 #+BEGIN_SRC elisp
 (defun ereslibre/generate-org-rss-feed (list)
-  (let ((blog-entries (seq-filter (apply-partially 'ereslibre/is-entry-of-type 'blog) (cdr list))))
-    (let* ((rss-contents (mapconcat 'ereslibre/rss-entry blog-entries "\n\n"))
+  (let ((blog-entries (seq-filter (apply-partially #'ereslibre/is-entry-of-type 'blog) (cdr list))))
+    (let* ((rss-contents (mapconcat #'ereslibre/rss-entry blog-entries "\n\n"))
            (full-rss-contents (concat "#+title: ereslibre.es\n\n" rss-contents)))
       (write-region full-rss-contents nil "./content/blog/feed.org"))))
 #+END_SRC
@@ -177,10 +177,10 @@ The ~ereslibre/rss-entry~ function looks like:
          (source-file-dir (file-name-directory source-file))
          (home-url-prefix (plist-get (cdr (ereslibre/rss-project)) :html-link-home))
          (contents (with-temp-buffer
+                     (org-mode)
                      (insert-file-contents source-file)
                      (beginning-of-buffer)
-                     ;; lower headline importance on inserted org (top level headlines are interpreted by ox-rss as entries)
-                     ;; by performing this operation, we lower all headlines and subheadlines importance by one
+                     ;; demote all headlines
                      (save-excursion
                        (while (re-search-forward "^\\*" nil t)
                          (replace-match "**")))
@@ -207,34 +207,32 @@ The ~ereslibre/rss-entry~ function looks like:
       (insert (format "* [[file:%s][%s]]\n" (ereslibre/path-relative-from-to-relative-to entry "content" "content/blog") title))
       (org-set-property "RSS_PERMALINK" link)
       (org-set-property "PUBDATE" (format-time-string "%Y-%m-%d" date))
-      (org-id-get-create)
       (insert contents)
       (buffer-string))))
 #+END_SRC
 
-It is worth mentioning that it:
+It is worth dissecting what tasks it performs:
 
-- Creates a temporary buffer
-- Inserts the contents of the target org file inside this temporary
-  buffer
-- Makes all headings have an extra ~*~. Top level headlines are each
-  RSS entry. By this transformation we ensure that we won't have top
-  level headlines when inserting other org file contents. All
-  inserted headlines are demoted by one.
+- Insert the contents of the target org file inside a temporary buffer
+- Demote all headlines from the inserted content
 - Transcode embedded links to other relative files. Since we are copying
   and pasting the contents of a file that is in other subdirectory
   (~content/blog/year/month~), all its relative references to other
-  files will be broken when writing the ~content/blog/feed.org~ file.
+  files will be broken when writing the ~content/blog/feed.org~ file
   - ~ereslibre/path-relative-from-to-relative-to~ rewrites a relative
     path from the original directory, to a relative path from the
     target directory. This is used for the toplevel entries in ~feed.org~
     and for correctness, since it's not really used when publishing --
-    as far as I can tell.
+    as far as I can tell
   - RSS readers won't know how to handle relative links like
     ~../../../contact.html~, so all ~[file:some-file]~ occurrences
     will be transcoded into a
     ~[https://html-link-home/some-path/some-file]~, only if they are
-    not in ~src~ or ~example~ blocks.
+    not in ~src~ or ~example~ blocks
+- Write the entry itself
+  - Insert the link to the blog post org file
+  - Add ~RSS_PERMALINK~ and ~PUBDATE~ org properties
+  - Insert the modified contents of the blog post
 
 *** website-assets
 
@@ -303,7 +301,7 @@ Turns out, ~(indent-region (point-min) (point-max))~ will indent
 something like:
 
 #+BEGIN_SRC html
-<description><![CDATA[<p>
+<description><![CDATA[
 <pre class="example">
 require (
   k8s.io/kubernetes v1.16.0-beta.1
@@ -315,7 +313,7 @@ require (
 to something like:
 
 #+BEGIN_SRC html
-<description><![CDATA[<p>
+<description><![CDATA[
 <pre class="example">
 require (
 k8s.io/kubernetes v1.16.0-beta.1
@@ -401,6 +399,23 @@ or
 Since the solution was really easy, and I was not completely sure I
 want headlines with different formatting, I ignored this problem and
 removed the special formatting from the title of the article.
+
+* Conclusion
+
+I'm happy to have the same engine that drives my personal and work
+schedule driving my personal website as well.
+
+There are some static website generators supporting ~org-mode~ format,
+but they are yet another component, whereas ~org-mode~ has already
+support for this features.
+
+I have been thinking about doing this for quite some time, I only
+needed a small push; in my case it was [[http://duncan.codes/posts/2019-09-03-migrating-from-jekyll-to-org/index.html][Duncan's]].
+
+Reading and writing elisp has been fun. In fact, playing with ~emacs~
+and ~org-mode~ APIs has been a quite enjoyable experience.
+
+Looks like the [[https://en.wikipedia.org/wiki/IKEA_effect][IKEA effect]] at its best, you might think!
 
 -----
 
