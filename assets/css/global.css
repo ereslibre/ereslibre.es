@@ -21,4 +21,6 @@
 pre.example, pre.src {
     white-space: pre;
     overflow-x: auto;
+    word-wrap: normal;
+    -webkit-overflow-scrolling: touch;
 }

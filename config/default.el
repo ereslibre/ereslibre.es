@@ -227,7 +227,7 @@ time in `current-time' format."
            <link rel=\"stylesheet\" type=\"text/css\" href=\"/assets/css/syntax.css?v=0\" />
            <link rel=\"stylesheet\" type=\"text/css\" href=\"/assets/css/hyde.css?v=0\" />
            <link rel=\"stylesheet\" type=\"text/css\" href=\"/assets/css/sidebar.css?v=0\" />
-           <link rel=\"stylesheet\" type=\"text/css\" href=\"/assets/css/global.css?v=0\" />
+           <link rel=\"stylesheet\" type=\"text/css\" href=\"/assets/css/global.css?v=1\" />
            <link rel=\"stylesheet\" href=\"/assets/css/fontawesome.css?v=0\" />
            <link rel=\"stylesheet\" href=\"//fonts.googleapis.com/css?family=PT+Sans%3A400%2C400italic%2C700%7CAbril+Fatface\" />"
          :style nil
