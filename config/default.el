@@ -123,7 +123,7 @@ XML contents, but indenting will make `<pre>' blocks inside
     (with-temp-buffer
       (insert (format "* [[file:%s][%s]]\n" (ereslibre/path-relative-from-to-relative-to entry "content" "content/blog") title))
       (org-set-property "RSS_PERMALINK" link)
-      (org-set-property "PUBDATE" (format-time-string "%Y-%m-%d" date))
+      (org-set-property "PUBDATE" (format-time-string "%Y-%m-%d %H:%M" date))
       (insert contents)
       (buffer-string))))
 
