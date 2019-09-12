@@ -56,7 +56,7 @@ XML contents, but indenting will make `<pre>' blocks inside
          (if date
            (format (concat contents
                            "<span class=\"post-date\">%s</span>")
-                   (org-timestamp-format (car date) "%Y-%m-%d" nil t))
+                   (org-timestamp-format (car date) "%Y-%m-%d"))
            (concat contents
                    "<span class=\"post-date\">&nbsp;</span>")))))))
 
