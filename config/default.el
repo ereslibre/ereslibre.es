@@ -168,6 +168,24 @@ XML contents, but indenting will make `<pre>' blocks inside
                           "&nbsp;"))
       :entry ,entry)))
 
+(defun ereslibre/hashed-href (file)
+  (let ((hash (with-temp-buffer
+               (insert-file-contents file)
+               (secure-hash 'sha1 (current-buffer)))))
+  (concat "/" file "?h=" hash)))
+
+(defun ereslibre/link-stylesheet (stylesheet)
+  (format "<link rel=\"stylesheet\" type=\"text/css\" href=\"%s\" />\n" stylesheet))
+
+(defun ereslibre/html-head-extra ()
+  (concat (ereslibre/link-stylesheet (ereslibre/hashed-href "assets/css/poole.css"))
+          (ereslibre/link-stylesheet (ereslibre/hashed-href "assets/css/syntax.css"))
+          (ereslibre/link-stylesheet (ereslibre/hashed-href "assets/css/hyde.css"))
+          (ereslibre/link-stylesheet (ereslibre/hashed-href "assets/css/sidebar.css"))
+          (ereslibre/link-stylesheet (ereslibre/hashed-href "assets/css/global.css"))
+          (ereslibre/link-stylesheet (ereslibre/hashed-href "assets/css/fontawesome.css"))
+          (ereslibre/link-stylesheet "//fonts.googleapis.com/css?family=PT+Sans%3A400%2C400italic%2C700%7CAbril+Fatface")))
+
 (defun ereslibre/org-publish-find-explicit-date (file project)
   "Find the date of FILE in PROJECT.
 This function assumes FILE is either a directory or an Org file.
@@ -222,14 +240,7 @@ time in `current-time' format."
          :with-title t
          :with-date t
          :html-head nil
-         :html-head-extra "
-           <link rel=\"stylesheet\" type=\"text/css\" href=\"/assets/css/poole.css?v=0\" />
-           <link rel=\"stylesheet\" type=\"text/css\" href=\"/assets/css/syntax.css?v=0\" />
-           <link rel=\"stylesheet\" type=\"text/css\" href=\"/assets/css/hyde.css?v=0\" />
-           <link rel=\"stylesheet\" type=\"text/css\" href=\"/assets/css/sidebar.css?v=0\" />
-           <link rel=\"stylesheet\" type=\"text/css\" href=\"/assets/css/global.css?v=1\" />
-           <link rel=\"stylesheet\" href=\"/assets/css/fontawesome.css?v=0\" />
-           <link rel=\"stylesheet\" href=\"//fonts.googleapis.com/css?family=PT+Sans%3A400%2C400italic%2C700%7CAbril+Fatface\" />"
+         :html-head-extra ,(ereslibre/html-head-extra)
          :style nil
          :timestamp t
          :exclude "blog/feed.org"
