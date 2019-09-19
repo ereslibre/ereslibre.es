@@ -1,5 +1,9 @@
 (require 'ox-html)
 (require 'ox-publish)
+(require 'ob-dot)
+
+(setq org-confirm-babel-evaluate nil)
+(add-to-list 'org-src-lang-modes (quote ("dot" . graphviz-dot)))
 
 (eval-after-load "ox-html"
   '(defun org-html-template (contents info)
