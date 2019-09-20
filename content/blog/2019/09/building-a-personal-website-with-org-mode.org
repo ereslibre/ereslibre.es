@@ -58,9 +58,9 @@ These pages are not included in the list of blog posts or notes.
 The generation phase is triggered by calling to ~emacs~ in batch mode,
 like so:
 
-#+BEGIN_SRC bash
+#+BEGIN_EXAMPLE
 emacs -L $(PWD) --batch --script init.el
-#+END_SRC
+#+END_EXAMPLE
 
 ~init.el~ is a simple initialization script that will load all elisp
 files inside ~config~. It will then call to ~(org-publish-all t)~.

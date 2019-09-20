@@ -23,7 +23,11 @@
     -webkit-box-shadow: 0px 0px 7px -5px black;
     -moz-box-shadow: 0px 0px 7px -5px black;
     box-shadow: 0px 0px 7px -5px black;
-    border: 1px solid white;
+    background: #fefefe;
+}
+
+.org-example-container pre, .org-src-container pre {
+    background: #fefefe;
 }
 
 .org-example-container:before, .org-src-container:before {
@@ -38,8 +42,8 @@
     font-weight: 900;
     padding: 0.2rem;
     padding-left: 1rem;
-    border-bottom: 1px solid white;
     background: #f9f9f9;
+    border-bottom: 1px solid #eee;
 }
 
 .org-example-container:before {
