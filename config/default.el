@@ -21,6 +21,59 @@
                "</body>
               </html>")))
 
+(eval-after-load "ox-html"
+  '(defun org-html-example-block (example-block _contents info)
+     (let ((attributes (org-export-read-attribute :attr_html example-block)))
+       (if (plist-get attributes :textarea)
+           (org-html--textarea-block example-block)
+         (format "<div class=\"org-example-container\"><pre class=\"example\"%s>\n%s</pre></div>"
+                 (let* ((name (org-element-property :name example-block))
+                        (a (org-html--make-attribute-string
+                            (if (or (not name) (plist-member attributes :id))
+                                attributes
+                              (plist-put attributes :id name)))))
+                   (if (org-string-nw-p a) (concat " " a) ""))
+                 (org-html-format-code example-block info))))))
+
+(eval-after-load "ox-html"
+  '(defun org-html-src-block (src-block _contents info)
+  (if (org-export-read-attribute :attr_html src-block :textarea)
+      (org-html--textarea-block src-block)
+    (let* ((lang (org-element-property :language src-block))
+	  (code (org-html-format-code src-block info))
+	  (label (let ((lbl (and (org-element-property :name src-block)
+				 (org-export-get-reference src-block info))))
+		   (if lbl (format " id=\"%s\"" lbl) "")))
+	  (klipsify  (and  (plist-get info :html-klipsify-src)
+                           (member lang '("javascript" "js"
+					  "ruby" "scheme" "clojure" "php" "html")))))
+      (if (not lang) (format "<div class=\"org-src-container\"><pre class=\"example\"%s>\n%s</pre></div>" label code)
+	(format "<div class=\"org-src-container\">\n%s%s\n</div>"
+		;; Build caption.
+		(let ((caption (org-export-get-caption src-block)))
+		  (if (not caption) ""
+		    (let ((listing-number
+			   (format
+			    "<span class=\"listing-number\">%s </span>"
+			    (format
+			     (org-html--translate "Listing %d:" info)
+			     (org-export-get-ordinal
+			      src-block info nil #'org-html--has-caption-p)))))
+		      (format "<label class=\"org-src-name\">%s%s</label>"
+			      listing-number
+			      (org-trim (org-export-data caption info))))))
+		;; Contents.
+		(if klipsify
+		    (format "<pre><code class=\"src src-%s\"%s%s>%s</code></pre>"
+			    lang
+			    label
+			    (if (string= lang "html")
+				" data-editor-type=\"html\""
+			      "")
+			    code)
+		  (format "<pre class=\"src src-%s\"%s>%s</pre>"
+                          lang label code))))))))
+
 (eval-after-load "ox-rss"
   '(defun org-rss-final-function (contents _backend _info)
      "Do nothing.

@@ -18,7 +18,47 @@
     margin-bottom: 2rem;
 }
 
-table, code, pre, .message, .google-slides-container {
+.org-example-container, .org-src-container {
+    border-radius: 5px;
+    -webkit-box-shadow: 0px 0px 7px -5px black;
+    -moz-box-shadow: 0px 0px 7px -5px black;
+    box-shadow: 0px 0px 7px -5px black;
+    border: 1px solid white;
+}
+
+.org-example-container:before, .org-src-container:before {
+    display: block;
+    border-top-left-radius: 5px;
+    border-top-right-radius: 5px;
+    font-style: normal;
+    font-variant: normal;
+    text-rendering: auto;
+    -webkit-font-smoothing: antialiased;
+    font-family: "Font Awesome 5 Free";
+    font-weight: 900;
+    padding: 0.2rem;
+    padding-left: 1rem;
+    border-bottom: 1px solid white;
+    background: #f9f9f9;
+}
+
+.org-example-container:before {
+    content: "\f120";
+}
+
+.org-src-container:before {
+    content: "\f121";
+}
+
+code, pre {
+    margin-bottom: 0;
+}
+
+.org-example-container, .org-src-container {
+    margin-bottom: 1rem;
+}
+
+table, .message, .google-slides-container {
     border-radius: 5px;
     -webkit-box-shadow: 0px 0px 7px -5px black;
     -moz-box-shadow: 0px 0px 7px -5px black;
@@ -27,8 +67,8 @@ table, code, pre, .message, .google-slides-container {
 }
 
 table {
-  border-collapse: collapse;
-  overflow: hidden;
+    border-collapse: collapse;
+    overflow: hidden;
 }
 
 pre.example, pre.src {

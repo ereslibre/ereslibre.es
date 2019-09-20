@@ -5,14 +5,6 @@ find anything useful feel free to take it!
 
 * Including dot diagrams with org-babel
 
-** Add ~dot~ to the list of src lang modes
-
-#+BEGIN_SRC elisp
-(add-to-list 'org-src-lang-modes (quote ("dot" . graphviz-dot)))
-#+END_SRC
-
-** Include the diagram in any document
-
 #+BEGIN_SRC org
 ,#+BEGIN_SRC dot :file diagram.png
 digraph G {
@@ -26,14 +18,4 @@ digraph G {
         execute -> compare;
 }
 ,#+END_SRC
-#+END_SRC
-
-** Disable confirmation of dot evaluation
-
-When generating the contents in an unattended mode it's good to let
-~emacs~ know that it's fine to evaluate the dot contents. We can avoid
-the confirmation by setting:
-
-#+BEGIN_SRC elisp
-(setq org-confirm-babel-evaluate nil)
 #+END_SRC
