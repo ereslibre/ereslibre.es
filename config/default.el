@@ -176,7 +176,7 @@ XML contents, but indenting will make `<pre>' blocks inside
                                         (expand-file-name match source-file-dir)
                                         "content"))
                                       ".html"))))))
-                     ;; transcode :file property on dot src blocks
+                     ;; transcode :file switch on dot src blocks
                      (save-excursion
                        (while (re-search-forward "dot :file\\s-+\\([^\\s-]+\\)" nil t)
                          (let* ((match (match-string 1))
