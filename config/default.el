@@ -176,6 +176,16 @@ XML contents, but indenting will make `<pre>' blocks inside
                                         (expand-file-name match source-file-dir)
                                         "content"))
                                       ".html"))))))
+                     ;; transcode :file property on dot src blocks
+                     (save-excursion
+                       (while (re-search-forward "dot :file\\s-+\\([^\\s-]+\\)" nil t)
+                         (let* ((match (match-string 1))
+                                (element (save-match-data (org-element-at-point))))
+                             (replace-match
+                              (concat "dot :file "
+                                       (file-relative-name
+                                        (expand-file-name match source-file-dir)
+                                        "content"))))))
                      (buffer-string))))
     (with-temp-buffer
       (insert (format "* [[file:%s][%s]]\n" (ereslibre/path-relative-from-to-relative-to entry "content" "content/blog") title))

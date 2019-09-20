@@ -2,6 +2,10 @@ img#avatar {
     display: block;
     margin-left: auto;
     margin-right: auto;
+    border-radius: 5px;
+    -webkit-box-shadow: 0px 0px 10px -5px white;
+    -moz-box-shadow: 0px 0px 10px -5px white;
+    box-shadow: 0px 0px 10px -5px white;
 }
 @media (min-width: 48em) {
     img#avatar {
