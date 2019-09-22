@@ -28,6 +28,11 @@
 
 .org-example-container pre, .org-src-container pre {
     background: #fefefe;
+    border-left: 1px solid #ddd;
+    border-right: 1px solid #ddd;
+    border-bottom: 1px solid #ddd;
+    border-bottom-left-radius: 5px;
+    border-bottom-right-radius: 5px;
 }
 
 .org-example-container:before, .org-src-container:before {
@@ -44,7 +49,9 @@
     padding: 0.2rem;
     padding-left: 1rem;
     background: #f9f9f9;
-    border-bottom: 1px solid #eee;
+    border-top: 1px solid #ddd;
+    border-left: 1px solid #ddd;
+    border-right: 1px solid #ddd;
 }
 
 .org-example-container:before {
