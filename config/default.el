@@ -242,7 +242,7 @@ XML contents, but indenting will make `<pre>' blocks inside
   (concat "/" file "?h=" hash)))
 
 (defun ereslibre/link-stylesheet (stylesheet)
-  (format "<link rel=\"stylesheet\" type=\"text/css\" href=\"%s\" />\n" stylesheet))
+  (format "<link rel=\"stylesheet\" type=\"text/css\" defer href=\"%s\" />\n" stylesheet))
 
 (defun ereslibre/html-head-extra ()
   (concat (ereslibre/link-stylesheet (ereslibre/hashed-href "assets/css/poole.css"))
