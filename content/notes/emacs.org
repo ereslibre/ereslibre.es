@@ -19,3 +19,15 @@ digraph G {
 }
 ,#+END_SRC
 #+END_SRC
+
+* Setting default ~git-link~ remote
+
+On any given repo:
+
+#+BEGIN_EXAMPLE
+git config --local --add git-link.remote <default-remote>
+#+END_EXAMPLE
+
+This will make ~C-c g l~ choose this remote by default. It's possible
+to choose what remote to use interactively by using the universal
+argument: ~C-u C-c g l~.
