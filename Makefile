@@ -8,7 +8,7 @@ publish: clean gen
 	git add .
 	git commit --no-gpg-sign -a -m "Publish static site"
 	git remote add origin git@github.com:ereslibre/ereslibre.es
-	git push -f origin master:publish
+	git push -f origin main:publish
 	popd
 
 clean:
