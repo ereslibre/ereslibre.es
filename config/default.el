@@ -320,7 +320,7 @@ time in `current-time' format."
          :publishing-function org-publish-attachment)
         ("website-content-assets"
          :base-directory "./content/"
-         :base-extension "png\\|jpg\\|gif\\|pdf\\|mp3\\|ogg"
+         :base-extension "png\\|jpg\\|gif\\|pdf\\|mp3\\|ogg\\|pub"
          :publishing-directory "./public_html/"
          :recursive t
          :publishing-function org-publish-attachment)
