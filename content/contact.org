@@ -5,5 +5,3 @@ Hi, my name is Rafael Fernández López. Feel free to drop me a line:
 - E-mail: [[mailto:ereslibre@ereslibre.es][ereslibre@ereslibre.es]]
 - Twitter: [[https://twitter.com/ereslibre][@ereslibre]]
 - IRC (~chat.freenode.net~): ~ereslibre~
-
-[[file:me.pub][GPG public key]].
