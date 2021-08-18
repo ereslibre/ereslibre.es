@@ -1,0 +1,80 @@
+#+title: random
+
+Random notes that make my life easier and that I would love not to
+lose or forget.
+
+* Import Google Authenticator exports
+
+If you are a Google Authenticator user I hope you love its lack of
+cloud sync as much as I do. Thing is, from time to time I like to
+backup its data.
+
+The way I back up its contents is as follows.
+
+** Backup the Google Authenticator QR-exports
+
+- Take your Android phone. Click on ~Transfer accounts~, ~Export
+  accounts~ inside your Google Authenticator application.
+
+- It would be amazing to take screenshots of each QR code, but it's
+  restricted for security reasons. There were means to circumvent this
+  security measure on Android, but I use an iOS device I have around
+  for this.
+
+- If you also happen to have a device with iOS, open Google
+  Authenticator there. Import all accounts previously exported by
+  scanning every QR-code shown on your Android device, and re-export
+  taking screenshots of each QR code on iOS.
+
+- Transfer your screenshots to a safe, offline place and ~shred~
+  everything you have done in your way. You could print them and keep
+  them in acid-free paper, for example, or a USB stick in a safe,
+  whatever feels best for you.
+
+- Keep a temporary copy of the screenshots that we will use in the
+  next step. After we are done, ~shred -u~ it as well.
+
+** Read the contents of each file with ~zbarimg~
+
+#+begin_example
+~/2fa » ls
+IMG_0005.png  IMG_0006.png  IMG_0007.png  IMG_0008.png  IMG_0009.png
+
+~/2fa » zbarimg *.png > codes.txt
+scanned 5 barcode symbols from 5 images in 0.92 seconds
+#+end_example
+
+** Extract all the tokens
+
+Now we will use the [[https://github.com/dim13/otpauth][~otpauth~]] tool to extract all the tokens from the
+migration transfer links to plain ~otpauth~ links that we can import
+directly in keys like the ~Yubikey~.
+
+*** Installing ~otpauth~
+
+You can read more on the project repository, but it boils down to ~go
+get~ it. If you happen to have another preferred way to install or run
+it, pick your poison.
+
+#+begin_example
+$ go get github.com/dim13/otpauth
+#+end_example
+
+We are so close now. We now have to extract the regular links.
+
+#+begin_example
+~/2fa » sed -r 's/^[^:]+://g' codes.txt | xargs -I{} otpauth -link {}
+#+end_example
+
+** Import the tokens you want
+
+I do use ~ykman~ with my ~Yubikey~ to generate codes. It's a pretty
+easy to use tool, that fullfills all my needs.
+
+In order to import the codes you want, you just have to indicate the
+line you want to import. Let's assume that the token you want to add
+is on line ~42~, we can run:
+
+#+begin_example
+~/2fa » sed -r 's/^[^:]+://g' codes.txt | xargs -I{} otpauth -link {} | sed -n '42p' | xargs ykman oath accounts uri
+#+end_example
