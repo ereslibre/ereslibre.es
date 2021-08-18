@@ -11,7 +11,7 @@ It is highly recommended that you have ~kubernetes~ cloned into a
 directory, along with all the staging repositories that will be
 reported on the resulting ~go.mod~ file, such as:
 
-#+BEGIN_EXAMPLE
+#+begin_example
 ~ > tree -L 1 ~/projects/go/src/k8s.io
 /home/ereslibre/projects/go/src/k8s.io
 ├── api
@@ -46,13 +46,13 @@ reported on the resulting ~go.mod~ file, such as:
 └── website
 
 30 directories, 0 files
-#+END_EXAMPLE
+#+end_example
 
 The usage is very straightforward, you have to pass a
 ~--kubernetes-version~ argument, and optionally a ~--kubernetes-path~
 argument, like:
 
-#+BEGIN_EXAMPLE
+#+begin_example
 ~/p/g/s/g/e/vendor-kubernetes (master) > go run -mod=vendor main.go --kubernetes-tag 1.16.0-beta.1 --kubernetes-path ~/projects/go/src/k8s.io
 require (
   k8s.io/kubernetes v1.16.0-beta.1
@@ -84,13 +84,13 @@ replace (
   k8s.io/sample-cli-plugin => k8s.io/sample-cli-plugin v0.0.0-20190822064016-bcca3cc588da
   k8s.io/sample-controller => k8s.io/sample-controller v0.0.0-20190822062306-1b561d990eb5
 )
-#+END_EXAMPLE
+#+end_example
 
 If you are missing any of the mentioned dependencies,
 ~vendor-kubernetes~ will clone it in memory and resolve the date and
 commit in an automatic fashion:
 
-#+BEGIN_EXAMPLE
+#+begin_example
 ~/p/g/s/g/e/vendor-kubernetes (master) > rm -rf ~/projects/go/src/k8s.io/cluster-bootstrap/
 ~/p/g/s/g/e/vendor-kubernetes (master) > go run -mod=vendor main.go --kubernetes-tag 1.16.0-beta.1 --kubernetes-path ~/projects/go/src/k8s.io
 project /home/ereslibre/projects/go/src/k8s.io/cluster-bootstrap not found; cloning project https://github.com/kubernetes/cluster-bootstrap in memory
@@ -124,7 +124,7 @@ replace (
   k8s.io/sample-cli-plugin => k8s.io/sample-cli-plugin v0.0.0-20190822064016-bcca3cc588da
   k8s.io/sample-controller => k8s.io/sample-controller v0.0.0-20190822062306-1b561d990eb5
 )
-#+END_EXAMPLE
+#+end_example
 
 Please, note that Kubernetes itself is not meant to be used as a
 module (subcomponents are). In the meantime, this tool can help you to

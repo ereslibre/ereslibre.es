@@ -58,9 +58,9 @@ These pages are not included in the list of blog posts or notes.
 The generation phase is triggered by calling to ~emacs~ in batch mode,
 like so:
 
-#+BEGIN_EXAMPLE
+#+begin_example
 emacs -L $(PWD) --batch --script init.el
-#+END_EXAMPLE
+#+end_example
 
 ~init.el~ is a simple initialization script that will load all elisp
 files inside ~config~. It will then call to ~(org-publish-all t)~.
@@ -81,11 +81,11 @@ and the ~content/blog/feed.org~ files will be automatically generated.
 The ~sitemap-function~ of the ~website-content~ project is set to
 ~ereslibre/sitemap~. It looks like:
 
-#+BEGIN_SRC elisp
+#+begin_src elisp
 (defun ereslibre/sitemap (title list)
   (progn (ereslibre/generate-org-rss-feed list)
          (format "#+OPTIONS: title:nil\n
-                  #+BEGIN_EXPORT html\n
+                  #+begin_export html\n
                   <div class=\"content container front-container\">
                     <div class=\"side-by-side\">
                       <h1 class=\"post-title\">Notes</h1><hr/>
@@ -96,10 +96,10 @@ The ~sitemap-function~ of the ~website-content~ project is set to
                       %s
                     </div>
                   </div>\n
-                  #+END_EXPORT"
+                  #+end_export"
                  (ereslibre/all-entries 'notes list)
                  (ereslibre/all-entries 'blog list))))
-#+END_SRC
+#+end_src
 
 Writing raw HTML here helps in getting the desired HTML layout easier.
 This will be automatically generated anyway, and I don't have to
@@ -111,7 +111,7 @@ account, we'll check what it does later.
 Each sitemap entry is formatted using ~ereslibre/sitemap-format-entry~,
 creating the link to the given entry:
 
-#+BEGIN_SRC elisp
+#+begin_src elisp
 (defun ereslibre/sitemap-format-entry (entry style project)
   (let ((date (ereslibre/org-publish-find-explicit-date entry project)))
     `(:content ,(format "<div class=\"post-preview\">
@@ -123,7 +123,7 @@ creating the link to the given entry:
                             (format-time-string "%Y-%m-%d" date)
                           "&nbsp;"))
       :entry ,entry)))
-#+END_SRC
+#+end_src
 
 **** Feed RSS generation: ~content/blog/feed.org~
 
@@ -133,7 +133,7 @@ generated -- this has some caveats, though.
 
 The contents ~ox-rss~ expects are of the form:
 
-#+BEGIN_SRC
+#+begin_src
 ,#+title: ereslibre.es
 
 ,* [[file:year/month/some-post.org][Some post]]
@@ -151,23 +151,23 @@ Blog post contents, or description.
  :ID:       d0d46dcf-ae23-42e5-b279-b17956b3d82a
  :END:
 Blog post contents, or description.
-#+END_SRC
+#+end_src
 
 The call on ~ereslibre/sitemap~ to ~ereslibre/generate-org-rss-feed~
 is what generates the RSS feed contents. ~content/blog/feed.org~ file
 will be created, listing the contents of all blog posts.
 
-#+BEGIN_SRC elisp
+#+begin_src elisp
 (defun ereslibre/generate-org-rss-feed (list)
   (let ((blog-entries (seq-filter (apply-partially #'ereslibre/is-entry-of-type 'blog) (cdr list))))
     (let* ((rss-contents (mapconcat #'ereslibre/rss-entry blog-entries "\n\n"))
            (full-rss-contents (concat "#+title: ereslibre.es\n\n" rss-contents)))
       (write-region full-rss-contents nil "./content/blog/feed.org"))))
-#+END_SRC
+#+end_src
 
 The ~ereslibre/rss-entry~ function looks like:
 
-#+BEGIN_SRC elisp
+#+begin_src elisp
 (defun ereslibre/rss-entry (entry)
   (let* ((entry (plist-get (car entry) :entry))
          (title (org-publish-find-title entry (ereslibre/website-project)))
@@ -209,7 +209,7 @@ The ~ereslibre/rss-entry~ function looks like:
       (org-set-property "PUBDATE" (format-time-string "%Y-%m-%d" date))
       (insert contents)
       (buffer-string))))
-#+END_SRC
+#+end_src
 
 It is worth dissecting what tasks it performs:
 
@@ -260,7 +260,7 @@ I wanted something really minimal. I migrated my whole website to
 a ~make publish~, all contents get generated, and the ~Makefile~ tells
 the rest:
 
-#+BEGIN_SRC makefile
+#+begin_src makefile
 .ONESHELL:
 publish: clean gen
 	pushd public_html
@@ -273,7 +273,7 @@ publish: clean gen
 
 clean:
 	rm -rf public_html
-#+END_SRC
+#+end_src
 
 Contents will be pushed to a branch in that repo called ~publish~, so
 Netlify will publish the website right after.
@@ -287,7 +287,7 @@ Some, but I will mention the most relevant ones only.
 When creating the RSS ~feed.org~ file, ~ox-rss~ has a function that
 runs when the buffer has all the XML contents already written:
 
-#+BEGIN_SRC elisp
+#+begin_src elisp
 (defun org-rss-final-function (contents backend info)
   "Prettify the RSS output."
   (with-temp-buffer
@@ -295,12 +295,12 @@ runs when the buffer has all the XML contents already written:
     (insert contents)
     (indent-region (point-min) (point-max))
     (buffer-substring-no-properties (point-min) (point-max))))
-#+END_SRC
+#+end_src
 
 Turns out, ~(indent-region (point-min) (point-max))~ will indent
 something like:
 
-#+BEGIN_SRC html
+#+begin_src html
 <description><![CDATA[
 <pre class="example">
 require (
@@ -308,11 +308,11 @@ require (
 )
 </pre>
 ]]></description>
-#+END_SRC
+#+end_src
 
 to something like:
 
-#+BEGIN_SRC html
+#+begin_src html
 <description><![CDATA[
 <pre class="example">
 require (
@@ -320,7 +320,7 @@ k8s.io/kubernetes v1.16.0-beta.1
 )
 </pre>
 ]]></description>
-#+END_SRC
+#+end_src
 
 So, code examples wouldn't look that nice on RSS readers. I fixed that by
 defining my own final function that does not call ~(indent-region)~,
@@ -348,53 +348,53 @@ beginning of the page, and moved the content a little. I could have
 fixed that with some CSS sorcery, but I didn't want extra output in my
 website either.
 
-Then, I took the path that is currently used, use ~#+BEGIN_EXPORT
+Then, I took the path that is currently used, use ~#+begin_export
 html~ and generate the org links manually while still relying on org's
 linking:
 
-#+BEGIN_SRC elisp
+#+begin_src elisp
 (org-export-string-as (format "[[file:%s][%s]]" entry (org-publish-find-title entry project)) 'html t)
-#+END_SRC
+#+end_src
 
 *** ~<title>~'s inside ~<head>~ with non-optimal contents
 
 I didn't fix this issue, what I did instead was to change the title of
 this post. It was previously named:
 
-#+BEGIN_SRC org
+#+begin_src org
 ,#+title: Building a personal website with ~org-mode~
-#+END_SRC
+#+end_src
 
 and I had to rename it to:
 
-#+BEGIN_SRC org
+#+begin_src org
 ,#+title: Building a personal website with org-mode
-#+END_SRC
+#+end_src
 
 The first ~title~ output in the generated HTML was:
 
-#+BEGIN_SRC html
+#+begin_src html
 <head>
   <title>Building a personal website with <code>org-mode</code></title>
 </head>
-#+END_SRC
+#+end_src
 
 I'm fairly sure this is a bug, but the question is then, what it
 should be:
 
-#+BEGIN_SRC html
+#+begin_src html
 <head>
   <title>Building a personal website with ~org-mode~</title>
 </head>
-#+END_SRC
+#+end_src
 
 or
 
-#+BEGIN_SRC html
+#+begin_src html
 <head>
   <title>Building a personal website with org-mode</title>
 </head>
-#+END_SRC
+#+end_src
 
 Since the solution was really easy, and I was not completely sure I
 want headlines with different formatting, I ignored this problem and

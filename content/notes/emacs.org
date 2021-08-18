@@ -5,8 +5,8 @@ find anything useful feel free to take it!
 
 * Including dot diagrams with org-babel
 
-#+BEGIN_SRC org
-,#+BEGIN_SRC dot :file diagram.png
+#+begin_src org
+,#+begin_src dot :file diagram.png
 digraph G {
         main -> parse -> execute;
         main -> init;
@@ -17,16 +17,16 @@ digraph G {
         main -> printf;
         execute -> compare;
 }
-,#+END_SRC
-#+END_SRC
+,#+end_src
+#+end_src
 
 * Setting default ~git-link~ remote
 
 On any given repo:
 
-#+BEGIN_EXAMPLE
+#+begin_example
 git config --local --add git-link.remote <default-remote>
-#+END_EXAMPLE
+#+end_example
 
 This will make ~C-c g l~ choose this remote by default. It's possible
 to choose what remote to use interactively by using the universal
