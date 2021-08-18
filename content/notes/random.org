@@ -63,8 +63,12 @@ $ go get github.com/dim13/otpauth
 We are so close now. We now have to extract the regular links.
 
 #+begin_example
-~/2fa » sed -r 's/^[^:]+://g' codes.txt | xargs -I{} otpauth -link {}
+~/2fa » sed -r 's/^[^:]+://g' codes.txt | xargs -I{} otpauth -link {} | cat -n
 #+end_example
+
+Check the line numbers you want to import. My current keys don't allow
+me to import all the ones I have, so I have to choose which ones I
+want installed in my security key.
 
 ** Import the tokens you want
 
