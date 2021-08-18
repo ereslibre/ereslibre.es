@@ -82,3 +82,5 @@ is on line ~42~, we can run:
 #+begin_example
 ~/2fa » sed -r 's/^[^:]+://g' codes.txt | xargs -I{} otpauth -link {} | sed -n '42p' | xargs ykman oath accounts uri
 #+end_example
+
+Repeat until you have imported all the tokens you want. That's it!
