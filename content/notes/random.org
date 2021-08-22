@@ -1,9 +1,13 @@
 #+title: random
+#+OPTIONS: toc:2
 
 Random notes that make my life easier and that I would love not to
 lose or forget.
 
 * Import Google Authenticator exports
+  :PROPERTIES:
+  :CUSTOM_ID: import-google-authenticator-exports
+  :END:
 
 If you are a Google Authenticator user I hope you love its lack of
 cloud sync as much as I do. Thing is, from time to time I like to

@@ -1,9 +1,14 @@
 #+title: emacs
+#+OPTIONS: toc:2
 
 Some notes regarding my ~emacs~ usage. Mostly for my future self, but if you
 find anything useful feel free to take it!
 
 * Including dot diagrams with org-babel
+  :PROPERTIES:
+  :CUSTOM_ID: including-dot-diagrams-with-org-babel
+  :END:
+
 
 #+begin_src org
 ,#+begin_src dot :file diagram.png
@@ -21,6 +26,9 @@ digraph G {
 #+end_src
 
 * Setting default ~git-link~ remote
+  :PROPERTIES:
+  :CUSTOM_ID: setting-default-git-link-remote
+  :END:
 
 On any given repo:
 
