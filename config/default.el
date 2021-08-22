@@ -211,17 +211,17 @@ XML contents, but indenting will make `<pre>' blocks inside
                   #+begin_export html\n
                   <div class=\"content container front-container\">
                     <div class=\"side-by-side\">
-                      <h1 class=\"post-title\">Notes</h1><hr/>
+                      <h1 class=\"post-title\">Blog</h1><hr/>
                       %s
                     </div>
                     <div class=\"side-by-side\">
-                      <h1 class=\"post-title\">Blog</h1><hr/>
+                      <h1 class=\"post-title\">Notes</h1><hr/>
                       %s
                     </div>
                   </div>\n
                   #+end_export"
-                 (ereslibre/all-entries 'notes list)
-                 (ereslibre/all-entries 'blog list))))
+                 (ereslibre/all-entries 'blog list)
+                 (ereslibre/all-entries 'notes list))))
 
 (defun ereslibre/sitemap-format-entry (entry style project)
   (let ((date (ereslibre/org-publish-find-explicit-date entry project)))
