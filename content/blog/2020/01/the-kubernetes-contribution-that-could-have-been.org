@@ -1,6 +1,6 @@
 #+title: The Kubernetes contribution that could have been
 #+date: <2020-01-04 sáb 21:17>
-#+OPTIONS: toc:1
+#+options: toc:1
 
 * The What
 

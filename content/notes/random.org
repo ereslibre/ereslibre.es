@@ -1,5 +1,5 @@
 #+title: random
-#+OPTIONS: toc:2
+#+options: toc:2
 
 Random notes that make my life easier and that I would love not to
 lose or forget.

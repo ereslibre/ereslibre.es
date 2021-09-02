@@ -207,7 +207,7 @@ XML contents, but indenting will make `<pre>' blocks inside
 
 (defun ereslibre/sitemap (title list)
   (progn (ereslibre/generate-org-rss-feed list)
-         (format "#+OPTIONS: title:nil\n
+         (format "#+options: title:nil\n
                   #+begin_export html\n
                   <div class=\"content container front-container\">
                     <div class=\"side-by-side\">

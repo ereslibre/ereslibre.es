@@ -1,5 +1,5 @@
 #+title: emacs
-#+OPTIONS: toc:2
+#+options: toc:2
 
 Some notes regarding my ~emacs~ usage. Mostly for my future self, but if you
 find anything useful feel free to take it!
