@@ -3,7 +3,7 @@
 Hi, my name is Rafael Fernández López. Feel free to drop me a line:
 
 - E-mail: [[mailto:ereslibre@ereslibre.es][ereslibre@ereslibre.es]]
-- Mastodon: [[https://mastodon.social/@ereslibre][@ereslibre@mastodon.social]]
+- Mastodon: [[https://hachyderm.io/@ereslibre][@ereslibre@hachyderm.io]]
 - IRC (~irc.libera.chat~): ~ereslibre~
 
 [[file:me.pub][GPG public key]].
