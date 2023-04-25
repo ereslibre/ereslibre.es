@@ -15,7 +15,7 @@ publish: clean gen
 	popd
 
 .PHONY: serve
-serve:
+serve: gen
 	sh -c 'cd public_html && python3 -m http.server'
 
 .PHONY: clean
