@@ -1,7 +1,8 @@
 gen:
-	.devenv/profile/bin/emacs -L $(PWD) --batch --script init.el
+	.devenv/profile/bin/emacs -L $(pwd) --batch --script init.el
 
 publish: clean gen
+	#!/usr/bin/env bash
 	pushd public_html
 	git init
 	git checkout -b main
