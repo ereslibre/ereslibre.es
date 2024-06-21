@@ -15,7 +15,7 @@
             inherit pkgs;
             inputs.nixpkgs = nixities.nixpkgs;
             modules = [{
-              packages = with pkgs; [ git emacs-nox python3 ];
+              packages = with pkgs; [ emacs-nox git just python3 ];
 
               enterShell = ''
                 echo 'Run ~make~ or ~make publish~'

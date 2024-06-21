@@ -1,3 +1,5 @@
+/.direnv
+/.devenv
 /content/index.org
 /content/blog/feed.org
 /content/**/*.png

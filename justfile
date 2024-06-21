@@ -1,9 +1,6 @@
-.PHONY: gen
 gen:
 	.devenv/profile/bin/emacs -L $(PWD) --batch --script init.el
 
-.PHONY: publish
-.ONESHELL:
 publish: clean gen
 	pushd public_html
 	git init
@@ -14,10 +11,8 @@ publish: clean gen
 	git push -f origin main:publish
 	popd
 
-.PHONY: serve
 serve: gen
 	sh -c 'cd public_html && python3 -m http.server'
 
-.PHONY: clean
 clean:
 	rm -rf public_html
