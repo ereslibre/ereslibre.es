@@ -6,4 +6,8 @@ Hi, my name is Rafael Fernández López. Feel free to drop me a line:
 - Mastodon: [[https://hachyderm.io/@ereslibre][@ereslibre@hachyderm.io]]
 - IRC (~irc.libera.chat~): ~ereslibre~
 
+If you do prefer to schedule a 1:1 meeting:
+
+- [[https://cal.com/ereslibre/15min][15 minute meeting]]
+
 [[file:me.pub][GPG public key]].
