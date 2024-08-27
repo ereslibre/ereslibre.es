@@ -4,7 +4,7 @@ Hi, my name is Rafael Fernández López. Feel free to drop me a line:
 
 - E-mail: [[mailto:ereslibre@ereslibre.es][ereslibre@ereslibre.es]]
 - Mastodon: [[https://hachyderm.io/@ereslibre][@ereslibre@hachyderm.io]]
-- Matrix: ~@ereslibre:ereslibre.social~
+- Matrix: [[https://matrix.to/#/@ereslibre:ereslibre.social][@ereslibre:ereslibre.social]]
 
 If you do prefer to schedule a 1:1 meeting:
 
