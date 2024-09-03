@@ -1,0 +1,108 @@
+.message p:last-child {
+    margin-bottom: 0;
+}
+
+.front-container .side-by-side {
+    vertical-align: top;
+    display: inline-block;
+    margin-right: 4rem;
+    min-width: 20rem;
+}
+
+.content.front-container {
+    max-width: none !important;
+    overflow-x: hidden;
+}
+
+.post-preview {
+    margin-bottom: 2rem;
+}
+
+.org-example-container, .org-src-container {
+    border-radius: 5px;
+    -webkit-box-shadow: 0px 0px 7px -5px black;
+    -moz-box-shadow: 0px 0px 7px -5px black;
+    box-shadow: 0px 0px 7px -5px black;
+    background: #fefefe;
+}
+
+.org-example-container pre, .org-src-container pre {
+    background: #fefefe;
+    border-left: 1px solid #ddd;
+    border-right: 1px solid #ddd;
+    border-bottom: 1px solid #ddd;
+    border-bottom-left-radius: 5px;
+    border-bottom-right-radius: 5px;
+}
+
+.org-example-container:before, .org-src-container:before {
+    display: block;
+    border-top-left-radius: 5px;
+    border-top-right-radius: 5px;
+    font-style: normal;
+    font-variant: normal;
+    text-rendering: auto;
+    -webkit-font-smoothing: antialiased;
+    font-family: "Font Awesome 5 Free";
+    font-weight: 900;
+    font-size: 0.8rem;
+    padding: 0.2rem;
+    padding-left: 1rem;
+    background: #f9f9f9;
+    border-top: 1px solid #ddd;
+    border-left: 1px solid #ddd;
+    border-right: 1px solid #ddd;
+}
+
+.org-example-container:before {
+    content: "\f120";
+}
+
+.org-src-container:before {
+    content: "\f121";
+}
+
+code, pre {
+    margin-bottom: 0;
+}
+
+.org-example-container, .org-src-container {
+    margin-bottom: 1rem;
+}
+
+table, .message, .google-slides-container {
+    border-radius: 5px;
+    -webkit-box-shadow: 0px 0px 7px -5px black;
+    -moz-box-shadow: 0px 0px 7px -5px black;
+    box-shadow: 0px 0px 7px -5px black;
+    border: 1px solid #ddd;
+}
+
+table {
+    border-collapse: collapse;
+    overflow: hidden;
+}
+
+pre.example, pre.src {
+    white-space: pre;
+    overflow-x: auto;
+    word-wrap: normal;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* Responsive Google Slides container (https://chrisyee.ca/blog/responsive-google-slides/) */
+
+.google-slides-container {
+    position: relative;
+    width: 100%;
+    padding-top: 60%;
+    overflow: hidden;
+}
+
+.google-slides-container iframe {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+}
