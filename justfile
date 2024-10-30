@@ -6,6 +6,7 @@ publish: clean gen
 	pushd public_html
 	git init
 	git checkout -b main
+	echo 'ereslibre.es' > CNAME
 	git add .
 	git commit --no-gpg-sign -a -m "Publish static site"
 	git remote add origin git@github.com:ereslibre/ereslibre.es
