@@ -1,0 +1,659 @@
+<!DOCTYPE html><html lang="en">
+                <head><!-- 2024-10-30 Wed 21:32 -->
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>The Kubernetes contribution that could have been</title>
+<meta name="generator" content="Org Mode" />
+<link rel="stylesheet" type="text/css" defer href="/assets/css/poole.css?h=d4c8bf3844a984ce26b99e74d3750776a70782e2" />
+<link rel="stylesheet" type="text/css" defer href="/assets/css/syntax.css?h=102da81e21102498e275df50a416d53add236a32" />
+<link rel="stylesheet" type="text/css" defer href="/assets/css/hyde.css?h=f619a950377712fd9b3e13662631545173d17b73" />
+<link rel="stylesheet" type="text/css" defer href="/assets/css/sidebar.css?h=d57642712e1d28963037b0140dfbb2612f66e961" />
+<link rel="stylesheet" type="text/css" defer href="/assets/css/global.css?h=991168e6967807cd5a82c4caf3d974edbd40ac45" />
+<link rel="stylesheet" type="text/css" defer href="/assets/css/fontawesome.css?h=19a185a2abbb0cdd1203a3aa0b8213b2417e7fb0" />
+<link rel="stylesheet" type="text/css" defer href="//fonts.googleapis.com/css?family=PT+Sans%3A400%2C400italic%2C700%7CAbril+Fatface" />
+</head>
+                <body><div class="content container">
+                                    <div class="post">
+                                      <h1 class="post-title">The Kubernetes contribution that could have been</h1><span class="post-date">2020-01-04</span><nav id="table-of-contents" role="doc-toc">
+<h2>Table of Contents</h2>
+<div id="text-table-of-contents" role="doc-toc">
+<ul>
+<li><a href="#org2784337">The What</a></li>
+<li><a href="#org1939092">The How</a></li>
+<li><a href="#orgabbc290">Conclusion</a></li>
+</ul>
+</div>
+</nav>
+
+<div id="outline-container-org2784337" class="outline-2">
+<h2 id="org2784337">The What</h2>
+<div class="outline-text-2" id="text-org2784337">
+<p>
+The problem we are going to explore in this post arised whenever you
+have at least a Layer 4 component between the client and the server.
+These components, such as load balancers, don't understand anything
+further than UDP or TCP if they are operating at the L4. Of course you
+can have L7 aware load balancers, but that is not in the scope of this
+blog post.
+</p>
+
+<p>
+Also, these components have to deal with problems like dangling
+connections, and so they will try to protect themselves from bad
+actors. One way in which they can protect their precious resources
+is by killing connections they believe unused for a given period of
+time.
+</p>
+
+<p>
+This is what I spotted. Stay with me.
+</p>
+
+<p>
+Note that in Kubernetes there are many clients. This can range from
+the standard <code>kubectl</code> CLI tool, to the <code>client-go</code> library that many
+projects use, to other client libraries. In the end, many components
+in Kubernetes are clients themselves, watching resources and
+performing changes on them. What we perceive as Kubernetes is the sum
+of all these components working together, each one doing a well defined
+and controlled task.
+</p>
+
+<p>
+The issue we are exploring today involves any client that needs to go
+through a Layer 4 component to reach the apiserver, while keeping long
+lived connections in an idle state.
+</p>
+
+<p>
+And so, our work bench starts to shape up. Let's use <code>kind</code> to create
+a local HA cluster. <code>kind</code> will create an HAProxy balancer instance
+automatically if we request to set up more than one control plane
+instance.
+</p>
+
+<p>
+<a href="https://github.com/kubernetes-sigs/kind/compare/master...ereslibre:low-timeout.patch">I have written a patch for <code>kind</code></a> that makes the problem pop up in a
+shorter period of time. If you are going to try this out I strongly
+suggest you to apply this patch and build <code>kind</code> with it for the rest
+of the exercise.
+</p>
+
+<p>
+Let's create a <code>kind</code> cluster:
+</p>
+
+<div class="org-example-container"><pre class="example">
+~ &gt; kind create cluster --config ~/.kind/3-masters-1-worker.yaml
+</pre></div>
+
+<p>
+Where my <code>~/.kind/3-masters-1-worker.yaml</code> configuration file looks
+like:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-yaml">kind: Cluster
+apiVersion: kind.sigs.k8s.io/v1alpha3
+nodes:
+- role: control-plane
+- role: control-plane
+- role: control-plane
+- role: worker
+</pre>
+</div>
+
+<p>
+After the cluster has been created and is up, we can try to reproduce
+one of the commands that trigger the problem:
+</p>
+
+<div class="org-example-container"><pre class="example">
+~ &gt; kubectl exec -it kube-apiserver-kind-control-plane -n kube-system sh
+# ⏎
+~ &gt;
+</pre></div>
+
+<p>
+The connection was closed. That's right. I did nothing. Let's check
+some other commands, like <code>kubectl logs -f</code>:
+</p>
+
+<div class="org-example-container"><pre class="example">
+~ &gt; kubectl logs -lk8s-app=kube-dns -f -n kube-system
+...
+error: unexpected EOF
+~ &gt;
+</pre></div>
+
+<p>
+So you start to see what's going on. You can reproduce this problem
+with every command that leaves a connection open, on a stream where
+changes might or might not happen.
+</p>
+
+<p>
+Let's look at what HAProxy has to say when inspecting its <code>stats</code>
+socket. Install <code>socat</code>:
+</p>
+
+<div class="org-example-container"><pre class="example">
+~ &gt; docker exec $(docker ps -q -f name=kind-external-load-balancer) apk add socat
+fetch http://dl-cdn.alpinelinux.org/alpine/v3.9/main/x86_64/APKINDEX.tar.gz
+fetch http://dl-cdn.alpinelinux.org/alpine/v3.9/community/x86_64/APKINDEX.tar.gz
+(1/5) Installing ncurses-terminfo-base (6.1_p20190105-r0)
+(2/5) Installing ncurses-terminfo (6.1_p20190105-r0)
+(3/5) Installing ncurses-libs (6.1_p20190105-r0)
+(4/5) Installing readline (7.0.003-r1)
+(5/5) Installing socat (1.7.3.2-r5)
+Executing busybox-1.29.3-r10.trigger
+OK: 15 MiB in 22 packages
+</pre></div>
+
+<p>
+And watch the HAProxy sessions:
+</p>
+
+<div class="org-example-container"><pre class="example">
+~ &gt; docker exec $(docker ps -q -f name=kind-external-load-balancer) watch -n1 'echo "show sess" | socat /var/run/haproxy.sock stdio' | grep "172.17.0.1"
+</pre></div>
+
+<p>
+Now, let's try to tail again, while we are watching the sessions:
+</p>
+
+<div class="org-example-container"><pre class="example">
+~ &gt; kubectl logs -lk8s-app=kube-dns -f -n kube-system
+...
+error: unexpected EOF
+~ &gt;
+</pre></div>
+
+<p>
+And so, what we see on the output from the session watch is the
+following:
+</p>
+
+<div class="org-example-container"><pre class="example">
+0x55f6155b8720: proto=tcpv4 src=172.17.0.1:60120 fe=control-plane be=kube-apiservers srv=kind-control-plane ts=00 age=0s calls=2 rate=2 cpu=0 lat=0 rq[f=848202h,i=0,an=00h,rx=4s,wx=,ax=] rp[f=80048202h,i=0,an=00h,rx=4s,wx=,ax=] s0=[8,200008h,fd=31,ex=] s1=[8,200018h,fd=46,ex=] exp=4s
+0x55f6155b8720: proto=tcpv4 src=172.17.0.1:60120 fe=control-plane be=kube-apiservers srv=kind-control-plane ts=00 age=1s calls=2 rate=0 cpu=0 lat=0 rq[f=848202h,i=0,an=00h,rx=3s,wx=,ax=] rp[f=80048202h,i=0,an=00h,rx=3s,wx=,ax=] s0=[8,200008h,fd=31,ex=] s1=[8,200018h,fd=46,ex=] exp=3s
+0x55f6155b8720: proto=tcpv4 src=172.17.0.1:60120 fe=control-plane be=kube-apiservers srv=kind-control-plane ts=00 age=2s calls=2 rate=0 cpu=0 lat=0 rq[f=848202h,i=0,an=00h,rx=2s,wx=,ax=] rp[f=80048202h,i=0,an=00h,rx=2s,wx=,ax=] s0=[8,200008h,fd=31,ex=] s1=[8,200018h,fd=46,ex=] exp=2s
+0x55f6155b8720: proto=tcpv4 src=172.17.0.1:60120 fe=control-plane be=kube-apiservers srv=kind-control-plane ts=00 age=3s calls=2 rate=0 cpu=0 lat=0 rq[f=848202h,i=0,an=00h,rx=1s,wx=,ax=] rp[f=80048202h,i=0,an=00h,rx=1s,wx=,ax=] s0=[8,200008h,fd=31,ex=] s1=[8,200018h,fd=46,ex=] exp=1s
+0x55f6155b8720: proto=tcpv4 src=172.17.0.1:60120 fe=control-plane be=kube-apiservers srv=kind-control-plane ts=00 age=4s calls=2 rate=0 cpu=0 lat=0 rq[f=848202h,i=0,an=00h,rx=0s,wx=,ax=] rp[f=80048202h,i=0,an=00h,rx=0s,wx=,ax=] s0=[8,200008h,fd=31,ex=] s1=[8,200018h,fd=46,ex=] exp=0s
+</pre></div>
+
+<p>
+Here we can see the expiration countdown (through the <code>exp</code> in each
+log). If no activity happens during this time, when <code>exp</code> reaches 0,
+HAProxy will close both connections.
+</p>
+
+<p>
+So, as long as there is some traffic, everything will be fine. The L4
+component will update its stats and will not close the connection.
+When that stream is silent for long enough, the L4 component will
+rightfully close the connection. After all it cannot tell if it's
+bad actors at the other side causing this behavior, or if any of the
+myriad of things that can go wrong with networking might have
+happened.
+</p>
+
+<p>
+I could spot this behavior with a number of client commands:
+</p>
+
+<ul class="org-ul">
+<li><code>kubectl exec -it</code></li>
+<li><code>kubectl attach</code></li>
+<li><code>kubectl logs -f</code></li>
+<li><code>kubectl get -w</code></li>
+</ul>
+
+<p>
+I'm sure this is not a complete list, but these are the ones I spotted
+and tried to fix in some way.
+</p>
+
+<p>
+Speaking of which&#x2026;
+</p>
+</div>
+</div>
+
+<div id="outline-container-org1939092" class="outline-2">
+<h2 id="org1939092">The How</h2>
+<div class="outline-text-2" id="text-org1939092">
+</div>
+<div id="outline-container-orgea26dd0" class="outline-3">
+<h3 id="orgea26dd0">L4 fine tuning</h3>
+<div class="outline-text-3" id="text-orgea26dd0">
+<p>
+At a first sight it looks like configuration could help here. We
+increase the timeout, and that's it, right? Well, there are some
+downsides to that:
+</p>
+
+<ul class="org-ul">
+<li>Increasing timeouts in general calls for harder situations to
+debug. They happen less frequently, but they do happen. And when
+they do&#x2026;</li>
+
+<li>It takes more time to reproduce until you find what's going on.</li>
+
+<li>Resources are limited; if you mix higher timeouts with bad actors
+you get a higher allocation of sockets and possibly an exhaustion of
+certain resources.</li>
+</ul>
+
+<p>
+All in all, I tried this approach nevertheless just for the sake of
+it.
+</p>
+
+<p>
+I'll spare you all the possibilities I tried and went through. I ended
+up setting <a href="http://cbonte.github.io/haproxy-dconv/2.1/configuration.html#4-timeout%2520tunnel">HAProxy's <code>timeout tunnel</code></a> to an unreasonable high enough
+timeout value (like 1 year), to see what happened.
+</p>
+
+<p>
+The timeout tunnel seemed to be exactly what I was looking for:
+</p>
+
+<blockquote>
+<p>
+The tunnel timeout applies when a bidirectional connection is established
+between a client and a server, and the connection remains inactive in both
+directions. This timeout supersedes both the client and server timeouts once
+the connection becomes a tunnel. In TCP, this timeout is used as soon as no
+analyzer remains attached to either connection (e.g. tcp content rules are
+accepted).
+</p>
+</blockquote>
+
+<p>
+And so, HAProxy refused to start with the given configuration:
+</p>
+
+<div class="org-example-container"><pre class="example">
+[ALERT] 330/181418 (1) : parsing [/usr/local/etc/haproxy/haproxy.cfg:17] : timer overflow in argument '8760h' to 'timeout tunnel' (maximum value is 2147483647 ms or ~24.8 days)
+</pre></div>
+
+<p>
+Even if I wanted to go with this apparently bad idea, HAProxy would
+refuse to keep a connection alive any longer than ~24.8 days. Fair
+enough.
+</p>
+
+<p>
+If it wasn't obvious enough before, playing with timeouts on the L4
+load balancer configuration was not going to get me much
+further. Moreover, if anything L4-only aware got in the middle, we
+would still have the same issue if this new component had lower
+timeouts, what would be perfectly possible (and reasonable).
+</p>
+
+<p>
+At this point I started to look at the problem from a different
+angle. The application should make sure to generate some kind of
+traffic, even if there's no data on the stream, so anything between
+the client and the server would notice that there's something
+happening, and that the stream is not idle from the TCP perspective.
+</p>
+</div>
+</div>
+
+<div id="outline-container-org5a53e28" class="outline-3">
+<h3 id="org5a53e28">The Kubernetes patch</h3>
+<div class="outline-text-3" id="text-org5a53e28">
+<p>
+The idea at this point was to include a new parameter in <code>kubectl</code>
+called <code>--ping-interval</code>. We'll revisit what ping means in what context.
+</p>
+
+<p>
+I started looking into how <code>kubectl</code> implemented the commands
+previously mentioned.
+</p>
+
+<p>
+Let's run <code>kubectl</code> with high verbosity to learn what it is doing
+behind the scenes.
+</p>
+</div>
+
+<div id="outline-container-org1a50b10" class="outline-4">
+<h4 id="org1a50b10"><code>kubectl exec -it</code></h4>
+<div class="outline-text-4" id="text-org1a50b10">
+<div class="org-example-container"><pre class="example">
+~ &gt; kubectl exec -v8 -it kube-apiserver-kind-control-plane -n kube-system sh
+(output omitted)
+I1127 23:54:11.979201   28755 round_trippers.go:427] Request Headers:
+I1127 23:54:11.979209   28755 round_trippers.go:431]     X-Stream-Protocol-Version: v4.channel.k8s.io
+I1127 23:54:11.979216   28755 round_trippers.go:431]     X-Stream-Protocol-Version: v3.channel.k8s.io
+I1127 23:54:11.979221   28755 round_trippers.go:431]     X-Stream-Protocol-Version: v2.channel.k8s.io
+I1127 23:54:11.979228   28755 round_trippers.go:431]     X-Stream-Protocol-Version: channel.k8s.io
+I1127 23:54:11.979234   28755 round_trippers.go:431]     User-Agent: kubectl/v1.18.0 (linux/amd64) kubernetes/9905a33
+I1127 23:54:11.995835   28755 round_trippers.go:446] Response Status: 101 Switching Protocols in 16 milliseconds
+I1127 23:54:11.995852   28755 round_trippers.go:449] Response Headers:
+I1127 23:54:11.995860   28755 round_trippers.go:452]     Connection: Upgrade
+I1127 23:54:11.995867   28755 round_trippers.go:452]     Upgrade: SPDY/3.1
+I1127 23:54:11.995873   28755 round_trippers.go:452]     X-Stream-Protocol-Version: v4.channel.k8s.io
+I1127 23:54:11.995878   28755 round_trippers.go:452]     Date: Wed, 27 Nov 2019 22:54:11 GMT
+# ⏎
+~ &gt;
+</pre></div>
+</div>
+</div>
+
+<div id="outline-container-org2068ac5" class="outline-4">
+<h4 id="org2068ac5"><code>kubectl attach</code></h4>
+<div class="outline-text-4" id="text-org2068ac5">
+<div class="org-example-container"><pre class="example">
+~ &gt; kubectl attach -v8 kube-apiserver-kind-control-plane -n kube-system
+(output omitted)
+I1127 23:59:52.210600   31733 round_trippers.go:420] POST https://127.0.0.1:35411/api/v1/namespaces/kube-system/pods/kube-apiserver-kind-control-plane/attach?container=kube-apiserver&amp;stderr=true&amp;stdout=true
+I1127 23:59:52.210609   31733 round_trippers.go:427] Request Headers:
+I1127 23:59:52.210614   31733 round_trippers.go:431]     X-Stream-Protocol-Version: v4.channel.k8s.io
+I1127 23:59:52.210618   31733 round_trippers.go:431]     X-Stream-Protocol-Version: v3.channel.k8s.io
+I1127 23:59:52.210621   31733 round_trippers.go:431]     X-Stream-Protocol-Version: v2.channel.k8s.io
+I1127 23:59:52.210625   31733 round_trippers.go:431]     X-Stream-Protocol-Version: channel.k8s.io
+I1127 23:59:52.210631   31733 round_trippers.go:431]     User-Agent: kubectl/v1.18.0 (linux/amd64) kubernetes/9905a33
+I1127 23:59:52.298756   31733 round_trippers.go:446] Response Status: 101 Switching Protocols in 88 milliseconds
+I1127 23:59:52.298777   31733 round_trippers.go:449] Response Headers:
+I1127 23:59:52.298783   31733 round_trippers.go:452]     X-Stream-Protocol-Version: v4.channel.k8s.io
+I1127 23:59:52.298788   31733 round_trippers.go:452]     Date: Wed, 27 Nov 2019 22:59:52 GMT
+I1127 23:59:52.298793   31733 round_trippers.go:452]     Connection: Upgrade
+I1127 23:59:52.298798   31733 round_trippers.go:452]     Upgrade: SPDY/3.1
+~ &gt;
+</pre></div>
+</div>
+</div>
+
+<div id="outline-container-org55a6424" class="outline-4">
+<h4 id="org55a6424"><code>kubectl logs -f</code></h4>
+<div class="outline-text-4" id="text-org55a6424">
+<div class="org-example-container"><pre class="example">
+~ &gt; kubectl logs -v8 -lk8s-app=kube-dns -f -n kube-system
+(output omitted)
+I1127 23:58:21.008411   31143 round_trippers.go:420] GET https://127.0.0.1:35411/api/v1/namespaces/kube-system/pods/coredns-5644d7b6d9-8vflb/log?follow=true&amp;tailLines=10
+I1127 23:58:21.008411   31143 round_trippers.go:420] GET https://127.0.0.1:35411/api/v1/namespaces/kube-system/pods/coredns-5644d7b6d9-r2vkw/log?follow=true&amp;tailLines=10
+I1127 23:58:21.008436   31143 round_trippers.go:427] Request Headers:
+I1127 23:58:21.008440   31143 round_trippers.go:427] Request Headers:
+I1127 23:58:21.008445   31143 round_trippers.go:431]     Accept: application/json, */*
+I1127 23:58:21.008447   31143 round_trippers.go:431]     Accept: application/json, */*
+I1127 23:58:21.008452   31143 round_trippers.go:431]     User-Agent: kubectl/v1.18.0 (linux/amd64) kubernetes/9905a33
+I1127 23:58:21.008456   31143 round_trippers.go:431]     User-Agent: kubectl/v1.18.0 (linux/amd64) kubernetes/9905a33
+I1127 23:58:21.021126   31143 round_trippers.go:446] Response Status: 200 OK in 12 milliseconds
+I1127 23:58:21.021151   31143 round_trippers.go:449] Response Headers:
+I1127 23:58:21.021162   31143 round_trippers.go:452]     Content-Type: text/plain
+I1127 23:58:21.021179   31143 round_trippers.go:452]     Date: Wed, 27 Nov 2019 22:58:21 GMT
+I1127 23:58:21.021187   31143 round_trippers.go:452]     Cache-Control: no-cache, private
+.:53
+2019-11-27T22:37:59.639Z [INFO] plugin/reload: Running configuration MD5 = f64cb9b977c7dfca58c4fab108535a76
+2019-11-27T22:37:59.639Z [INFO] CoreDNS-1.6.2
+2019-11-27T22:37:59.639Z [INFO] linux/amd64, go1.12.8, 795a3eb
+CoreDNS-1.6.2
+linux/amd64, go1.12.8, 795a3eb
+I1127 23:58:21.023865   31143 round_trippers.go:446] Response Status: 200 OK in 15 milliseconds
+I1127 23:58:21.023881   31143 round_trippers.go:449] Response Headers:
+I1127 23:58:21.023890   31143 round_trippers.go:452]     Cache-Control: no-cache, private
+I1127 23:58:21.023908   31143 round_trippers.go:452]     Content-Type: text/plain
+I1127 23:58:21.023915   31143 round_trippers.go:452]     Date: Wed, 27 Nov 2019 22:58:21 GMT
+.:53
+2019-11-27T22:37:59.608Z [INFO] plugin/reload: Running configuration MD5 = f64cb9b977c7dfca58c4fab108535a76
+2019-11-27T22:37:59.608Z [INFO] CoreDNS-1.6.2
+2019-11-27T22:37:59.608Z [INFO] linux/amd64, go1.12.8, 795a3eb
+CoreDNS-1.6.2
+linux/amd64, go1.12.8, 795a3eb
+F1127 23:58:22.025841   31143 helpers.go:114] error: unexpected EOF
+~ &gt;
+</pre></div>
+</div>
+</div>
+
+<div id="outline-container-org3d7b458" class="outline-4">
+<h4 id="org3d7b458"><code>kubectl get -w</code></h4>
+<div class="outline-text-4" id="text-org3d7b458">
+<div class="org-example-container"><pre class="example">
+~ &gt; kubectl get -v8 -w pods -n kube-system
+(output omitted)
+I1128 00:07:33.132398   36629 round_trippers.go:420] GET https://127.0.0.1:35411/api/v1/namespaces/kube-system/pods?resourceVersion=3023&amp;watch=true
+I1128 00:07:33.132412   36629 round_trippers.go:427] Request Headers:
+I1128 00:07:33.132421   36629 round_trippers.go:431]     Accept: application/json;as=Table;v=v1beta1;g=meta.k8s.io, application/json
+I1128 00:07:33.132430   36629 round_trippers.go:431]     User-Agent: kubectl/v1.18.0 (linux/amd64) kubernetes/9905a33
+I1128 00:07:33.133569   36629 round_trippers.go:446] Response Status: 200 OK in 1 milliseconds
+I1128 00:07:33.133583   36629 round_trippers.go:449] Response Headers:
+I1128 00:07:33.133590   36629 round_trippers.go:452]     Date: Wed, 27 Nov 2019 23:07:33 GMT
+I1128 00:07:33.133594   36629 round_trippers.go:452]     Cache-Control: no-cache, private
+I1128 00:07:33.133599   36629 round_trippers.go:452]     Content-Type: application/json
+I1128 00:07:34.135522   36629 streamwatcher.go:114] Unexpected EOF during watch stream event decoding: unexpected EOF
+~ &gt;
+</pre></div>
+</div>
+</div>
+
+<div id="outline-container-orge77a4b9" class="outline-4">
+<h4 id="orge77a4b9">Observations</h4>
+<div class="outline-text-4" id="text-orge77a4b9">
+<p>
+At first sight, <code>exec</code> and <code>attach</code> are very similar. Both are
+upgrading the HTTP connection to <code>SPDY/3.1</code>.
+</p>
+
+<p>
+On the other hand, <code>logs -f</code> and <code>get -w</code> are <code>HTTP/1.1</code> requests.
+</p>
+</div>
+</div>
+
+<div id="outline-container-org9098b38" class="outline-4">
+<h4 id="org9098b38">The patch</h4>
+<div class="outline-text-4" id="text-org9098b38">
+<p>
+The pull request I opened can be <a href="https://github.com/kubernetes/kubernetes/pull/81179">seen here</a>. Please, bear in mind that
+it was a heavy WIP and many things are not even considered. Let's go through it.
+</p>
+</div>
+</div>
+
+<div id="outline-container-org8dd0180" class="outline-4">
+<h4 id="org8dd0180">The strategy</h4>
+<div class="outline-text-4" id="text-org8dd0180">
+<p>
+Different commands had slightly different strategies.
+</p>
+</div>
+
+<div id="outline-container-orgf7f3d79" class="outline-5">
+<h5 id="orgf7f3d79"><code>exec -it</code> and <code>attach</code></h5>
+<div class="outline-text-5" id="text-orgf7f3d79">
+<p>
+Both commands are relying on apimachinery's <code>httpstream</code>. The main
+idea was to <a href="https://github.com/ereslibre/kubernetes/blob/9d3894c379bd36be66ba9d00fc5abe8d63f1e6da/staging/src/k8s.io/apimachinery/pkg/util/httpstream/httpstream.go#L76-L77">add a <code>Ping()</code> method to the <code>Connection</code> interface</a>. In
+this case, this method would rely directly on <a href="https://github.com/ereslibre/kubernetes/blob/9d3894c379bd36be66ba9d00fc5abe8d63f1e6da/staging/src/k8s.io/apimachinery/pkg/util/httpstream/spdy/connection.go#L93-L96">calling to the docker's
+<code>spdystream</code> backend</a> (that <a href="https://github.com/docker/spdystream/blob/6480d4af844c189cf5dd913db24ddd339d3a4f85/connection.go#L259-L288">looks like this</a>.)
+</p>
+</div>
+</div>
+
+<div id="outline-container-org9eeb0d5" class="outline-5">
+<h5 id="org9eeb0d5"><code>logs -f</code></h5>
+<div class="outline-text-5" id="text-org9eeb0d5">
+<p>
+<code>ResponseWrapper</code> interface <a href="https://github.com/kubernetes/kubernetes/blob/1c99825adfb30f6abb177e85ddb31f2fdef011e1/staging/src/k8s.io/client-go/rest/request.go#L64">has a <code>Stream()</code></a> function, so the idea
+was to <a href="https://github.com/ereslibre/kubernetes/blob/9d3894c379bd36be66ba9d00fc5abe8d63f1e6da/staging/src/k8s.io/client-go/rest/request.go#L67">add a new <code>StreamWithPing()</code></a> function. So users of the
+<code>client-go</code> library could choose which one to use depending on their
+needs, while keeping the original behavior intact.
+</p>
+</div>
+</div>
+
+<div id="outline-container-org5fda119" class="outline-5">
+<h5 id="org5fda119"><code>get -w</code></h5>
+<div class="outline-text-5" id="text-org5fda119">
+<p>
+<code>get -w</code> is another slightly different case. It will run in a loop
+watching for changes, so there's no need to strictly keep the
+connection alive. If the connection is closed on the server end, the
+client could just be instructed to reissue the same request.
+</p>
+</div>
+</div>
+
+<div id="outline-container-org8119e5b" class="outline-5">
+<h5 id="org8119e5b"><code>client-go</code></h5>
+<div class="outline-text-5" id="text-org8119e5b">
+<p>
+Then, a <a href="https://github.com/ereslibre/kubernetes/blob/9d3894c379bd36be66ba9d00fc5abe8d63f1e6da/staging/src/k8s.io/client-go/util/keepalive/keepalive.go"><code>keepalive</code> package</a> would be included into <code>client-go</code>, so it
+could be used with different backends (e.g. <code>spdystreamer</code>, golang's
+<code>net/http</code> and <code>net/http2</code>&#x2026;). This package would define a <code>Pinger</code>
+interface containing a single function: <code>Ping()</code>. The different
+implementations here is in part what I liked the least about this
+proposal. There were several pinger implementations in the PR:
+</p>
+
+<ul class="org-ul">
+<li><a href="https://github.com/ereslibre/kubernetes/tree/9d3894c379bd36be66ba9d00fc5abe8d63f1e6da/staging/src/k8s.io/client-go/util/keepalive/spdy"><code>spdy</code> pinger</a></li>
+<li><a href="https://github.com/ereslibre/kubernetes/tree/9d3894c379bd36be66ba9d00fc5abe8d63f1e6da/staging/src/k8s.io/client-go/util/keepalive/restclient"><code>restclient</code> pinger</a></li>
+<li><a href="https://github.com/ereslibre/kubernetes/tree/9d3894c379bd36be66ba9d00fc5abe8d63f1e6da/staging/src/k8s.io/client-go/util/keepalive/http"><code>http</code> pinger</a></li>
+</ul>
+
+<p>
+While the <a href="https://github.com/ereslibre/kubernetes/blob/9d3894c379bd36be66ba9d00fc5abe8d63f1e6da/staging/src/k8s.io/client-go/util/keepalive/spdy/spdy.go"><code>spdy</code> pinger</a> was clearly the implementation I felt more
+comfortable with, it wasn't the case with the <code>restclient</code> and <code>http</code>
+pinger implementations.
+</p>
+
+<p>
+All my tests were successful with all backends, but the <code>restclient</code>
+and <code>http</code> solutions were working because of the inner implementation
+of the internal socket reuse of golang's <code>net/http</code> internally.
+</p>
+
+<p>
+Apart from that, it wasn't possible to have a dedicated <code>net/http2</code>
+backend because if <code>HTTP/2</code> is used through golang's <code>net/http</code> (that
+includes <a href="https://github.com/golang/go/blob/8adc1e00aa1a92a85b9d6f3526419d49dd7859dd/src/net/http/h2_bundle.go"><code>net/http2</code> in a bundle</a>), it's impossible to access
+<code>net/http2</code> internals from within <code>net/http</code> &#x2013; <a href="https://godoc.org/golang.org/x/net/http2#ClientConn">in particular the
+<code>ClientConn</code> associated with the connection</a>, to <a href="https://github.com/golang/net/blob/c0dbc17a35534bf2e581d7a942408dc936316da4/http2/transport.go#L2349"><code>Ping()</code> the other end</a>.
+Had golang permitted this somehow it would have been possible to take
+advantage of <a href="https://http2.github.io/http2-spec/#PING"><code>HTTP/2</code>'s native ping frame</a>, what would have been
+sufficient to generate some TCP traffic, knowing that the right socket
+would have been used.
+</p>
+
+<p>
+The main problem with the <code>restclient</code> and <code>http</code> pingers is that if
+golang's internal implementation changed and didn't reuse sockets
+under certain circumstances our "pings" wouldn't go through the
+expected TCP socket, what wouldn't count towards TCP traffic after
+all, and eventually the connection would have been closed
+nevertheless.
+</p>
+
+<p>
+Also, there is the problem of what ping means in an <code>HTTP/1.1</code>
+context. In my very first proposal of the PR it was a mere HTTP
+request to <code>scheme://hostPort/healthz</code>. Whether this operation was
+allowed, whether we had permissions to perform this operation, or even
+if the endpoint didn't exist are things we didn't really care
+about. As long as the request was made, and <b><b>some</b></b> TCP traffic made
+it through, the goal was achieved.
+</p>
+
+<p>
+In any case, the solution was not optimal for <code>restclient</code>, neither
+for <code>http</code> and it wasn't possible to properly extract and create a
+dedicated <code>http2</code> pinger because of how golang hides the internal
+implementation of <code>net/http2</code> behind <code>net/http</code> when using <code>HTTP/2</code>
+through <code>net/http</code>.
+</p>
+
+<p>
+And so, while I was thinking about all these problems, and all these
+things I didn't really like about this possible solution, another
+possibility was proposed.
+</p>
+</div>
+</div>
+</div>
+</div>
+
+<div id="outline-container-org1374a86" class="outline-3">
+<h3 id="org1374a86">The golang patch</h3>
+<div class="outline-text-3" id="text-org1374a86">
+<p>
+There was a <a href="https://github.com/golang/net/pull/55">proposal for golang to perform these pings on <code>http2</code>
+automatically by the runtime</a>.
+</p>
+
+<p>
+Despite this solution might not be the definitive one (and only fits
+on <code>http2</code>), I think it's good enough for the ball to get rolling in
+the golang space.
+</p>
+
+<p>
+Knowing that golang will automatically send ping frames to the other
+end at intervals allows us to just configure the intervals and let the
+golang runtime do the rest. Since this is clearly an application layer
+problem I think it makes a lot of sense to have the solution in this
+space.
+</p>
+</div>
+</div>
+</div>
+
+<div id="outline-container-orgabbc290" class="outline-2">
+<h2 id="orgabbc290">Conclusion</h2>
+<div class="outline-text-2" id="text-orgabbc290">
+<p>
+Depending on how this feature lands in golang, and depending on its
+design I might think about this problem again in the Kubernetes space,
+and check again if it makes sense to implement something like
+<code>--ping-interval</code> baked into <code>kubectl</code> and <code>client-go</code>.
+</p>
+
+<p>
+For now, to something different.
+</p>
+</div>
+</div>
+  </div><!-- post -->
+   </div><!-- content --><div class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <p class="lead"><img id="avatar" alt="My avatar" src="//s.gravatar.com/avatar/bdc4bd9b9b18388588ed2273adaee8a6?s=128" /></p>
+      <p class="lead">Libre Software lover. Hacker.</p>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="sidebar-nav-item">
+        <i class="fas fa-home"></i><a href="/">Home</a>
+      </div>
+      <div class="sidebar-nav-item">
+        <i class="fas fa-envelope"></i><a href="/contact.html">Contact</a>
+      </div>
+      <div class="sidebar-nav-item">
+        <i class="fas fa-rss-square"></i><a href="/blog/feed.xml">RSS</a>
+      </div>
+    </nav>
+    <nav class="sidebar-nav">
+      <div class="sidebar-nav-item">
+        <i class="fab fa-github"></i><a href="https://github.com/ereslibre">GitHub</a>
+      </div>
+      <div class="sidebar-nav-item">
+        <i class="fab fa-mastodon"></i><a rel="me" href="https://hachyderm.io/@ereslibre">Mastodon</a>
+      </div>
+      <div class="sidebar-nav-item">
+        <i class="fab fa-keybase"></i><a href="https://keybase.io/ereslibre">Keybase</a>
+      </div>
+      <div class="sidebar-nav-item">
+        <i class="fab fa-linkedin"></i><a href="https://linkedin.com/in/rafaelfernandezlopez">LinkedIn</a>
+      </div>
+    </nav>
+    <p><a href="https://github.com/ereslibre/ereslibre.es">Built</a> with <a href="https://orgmode.org/">org-mode</a>.</p>
+  </div>
+</div>
+</body>
+              </html>

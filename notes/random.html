@@ -1,0 +1,192 @@
+<!DOCTYPE html><html lang="en">
+                <head><!-- 2024-10-30 Wed 21:32 -->
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>random</title>
+<meta name="generator" content="Org Mode" />
+<link rel="stylesheet" type="text/css" defer href="/assets/css/poole.css?h=d4c8bf3844a984ce26b99e74d3750776a70782e2" />
+<link rel="stylesheet" type="text/css" defer href="/assets/css/syntax.css?h=102da81e21102498e275df50a416d53add236a32" />
+<link rel="stylesheet" type="text/css" defer href="/assets/css/hyde.css?h=f619a950377712fd9b3e13662631545173d17b73" />
+<link rel="stylesheet" type="text/css" defer href="/assets/css/sidebar.css?h=d57642712e1d28963037b0140dfbb2612f66e961" />
+<link rel="stylesheet" type="text/css" defer href="/assets/css/global.css?h=991168e6967807cd5a82c4caf3d974edbd40ac45" />
+<link rel="stylesheet" type="text/css" defer href="/assets/css/fontawesome.css?h=19a185a2abbb0cdd1203a3aa0b8213b2417e7fb0" />
+<link rel="stylesheet" type="text/css" defer href="//fonts.googleapis.com/css?family=PT+Sans%3A400%2C400italic%2C700%7CAbril+Fatface" />
+</head>
+                <body><div class="content container">
+                                    <div class="post">
+                                      <h1 class="post-title">random</h1><span class="post-date">&nbsp;</span><nav id="table-of-contents" role="doc-toc">
+<h2>Table of Contents</h2>
+<div id="text-table-of-contents" role="doc-toc">
+<ul>
+<li><a href="#import-google-authenticator-exports">Import Google Authenticator exports</a>
+<ul>
+<li><a href="#org89a3cf1">Backup the Google Authenticator QR-exports</a></li>
+<li><a href="#org14e12a5">Read the contents of each file with <code>zbarimg</code></a></li>
+<li><a href="#org9fa6f34">Extract all the tokens</a></li>
+<li><a href="#org517bb3a">Import the tokens you want</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</nav>
+<p>
+Random notes that make my life easier and that I would love not to
+lose or forget.
+</p>
+
+<div id="outline-container-import-google-authenticator-exports" class="outline-2">
+<h2 id="import-google-authenticator-exports">Import Google Authenticator exports</h2>
+<div class="outline-text-2" id="text-import-google-authenticator-exports">
+<p>
+If you are a Google Authenticator user I hope you love its lack of
+cloud sync as much as I do. Thing is, from time to time I like to
+backup its data.
+</p>
+
+<p>
+The way I back up its contents is as follows.
+</p>
+</div>
+
+<div id="outline-container-org89a3cf1" class="outline-3">
+<h3 id="org89a3cf1">Backup the Google Authenticator QR-exports</h3>
+<div class="outline-text-3" id="text-org89a3cf1">
+<ul class="org-ul">
+<li>Take your Android phone. Click on <code>Transfer accounts</code>, <code>Export
+  accounts</code> inside your Google Authenticator application.</li>
+
+<li>It would be amazing to take screenshots of each QR code, but it's
+restricted for security reasons. There were means to circumvent this
+security measure on Android, but I use an iOS device I have around
+for this.</li>
+
+<li>If you also happen to have a device with iOS, open Google
+Authenticator there. Import all accounts previously exported by
+scanning every QR-code shown on your Android device, and re-export
+taking screenshots of each QR code on iOS.</li>
+
+<li>Transfer your screenshots to a safe, offline place and <code>shred</code>
+everything you have done in your way. You could print them and keep
+them in acid-free paper, for example, or a USB stick in a safe,
+whatever feels best for you.</li>
+
+<li>Keep a temporary copy of the screenshots that we will use in the
+next step. After we are done, <code>shred -u</code> it as well.</li>
+</ul>
+</div>
+</div>
+
+<div id="outline-container-org14e12a5" class="outline-3">
+<h3 id="org14e12a5">Read the contents of each file with <code>zbarimg</code></h3>
+<div class="outline-text-3" id="text-org14e12a5">
+<div class="org-example-container"><pre class="example">
+~/2fa » ls
+IMG_0005.png  IMG_0006.png  IMG_0007.png  IMG_0008.png  IMG_0009.png
+
+~/2fa » zbarimg *.png &gt; codes.txt
+scanned 5 barcode symbols from 5 images in 0.92 seconds
+</pre></div>
+</div>
+</div>
+
+<div id="outline-container-org9fa6f34" class="outline-3">
+<h3 id="org9fa6f34">Extract all the tokens</h3>
+<div class="outline-text-3" id="text-org9fa6f34">
+<p>
+Now we will use the <a href="https://github.com/dim13/otpauth"><code>otpauth</code></a> tool to extract all the tokens from the
+migration transfer links to plain <code>otpauth</code> links that we can import
+directly in keys like the <code>Yubikey</code>.
+</p>
+</div>
+
+<div id="outline-container-org79a8adf" class="outline-4">
+<h4 id="org79a8adf">Installing <code>otpauth</code></h4>
+<div class="outline-text-4" id="text-org79a8adf">
+<p>
+You can read more on the project repository, but it boils down to <code>go
+get</code> it. If you happen to have another preferred way to install or run
+it, pick your poison.
+</p>
+
+<div class="org-example-container"><pre class="example">
+$ go get github.com/dim13/otpauth
+</pre></div>
+
+<p>
+We are so close now. We now have to extract the regular links.
+</p>
+
+<div class="org-example-container"><pre class="example">
+~/2fa » sed -r 's/^[^:]+://g' codes.txt | xargs -L1 otpauth -link | cat -n
+</pre></div>
+
+<p>
+Check the line numbers you want to import. My current keys don't allow
+me to import all the ones I have, so I have to choose which ones I
+want installed in my security key.
+</p>
+</div>
+</div>
+</div>
+
+<div id="outline-container-org517bb3a" class="outline-3">
+<h3 id="org517bb3a">Import the tokens you want</h3>
+<div class="outline-text-3" id="text-org517bb3a">
+<p>
+I do use <code>ykman</code> with my <code>Yubikey</code> to generate codes. It's a pretty
+easy to use tool, that fullfills all my needs.
+</p>
+
+<p>
+In order to import the codes you want, you just have to indicate the
+line you want to import. Let's assume that the token you want to add
+is on line <code>42</code>, we can run:
+</p>
+
+<div class="org-example-container"><pre class="example">
+~/2fa » sed -r 's/^[^:]+://g' codes.txt | xargs -L1 otpauth -link | sed -n '42p' | ykman oath accounts uri
+</pre></div>
+
+<p>
+Repeat until you have imported all the tokens you want. That's it!
+</p>
+</div>
+</div>
+</div>
+  </div><!-- post -->
+   </div><!-- content --><div class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <p class="lead"><img id="avatar" alt="My avatar" src="//s.gravatar.com/avatar/bdc4bd9b9b18388588ed2273adaee8a6?s=128" /></p>
+      <p class="lead">Libre Software lover. Hacker.</p>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="sidebar-nav-item">
+        <i class="fas fa-home"></i><a href="/">Home</a>
+      </div>
+      <div class="sidebar-nav-item">
+        <i class="fas fa-envelope"></i><a href="/contact.html">Contact</a>
+      </div>
+      <div class="sidebar-nav-item">
+        <i class="fas fa-rss-square"></i><a href="/blog/feed.xml">RSS</a>
+      </div>
+    </nav>
+    <nav class="sidebar-nav">
+      <div class="sidebar-nav-item">
+        <i class="fab fa-github"></i><a href="https://github.com/ereslibre">GitHub</a>
+      </div>
+      <div class="sidebar-nav-item">
+        <i class="fab fa-mastodon"></i><a rel="me" href="https://hachyderm.io/@ereslibre">Mastodon</a>
+      </div>
+      <div class="sidebar-nav-item">
+        <i class="fab fa-keybase"></i><a href="https://keybase.io/ereslibre">Keybase</a>
+      </div>
+      <div class="sidebar-nav-item">
+        <i class="fab fa-linkedin"></i><a href="https://linkedin.com/in/rafaelfernandezlopez">LinkedIn</a>
+      </div>
+    </nav>
+    <p><a href="https://github.com/ereslibre/ereslibre.es">Built</a> with <a href="https://orgmode.org/">org-mode</a>.</p>
+  </div>
+</div>
+</body>
+              </html>

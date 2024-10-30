@@ -1,0 +1,1450 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0"
+	xmlns:content="http://purl.org/rss/1.0/modules/content/"
+	xmlns:wfw="http://wellformedweb.org/CommentAPI/"
+	xmlns:dc="http://purl.org/dc/elements/1.1/"
+	xmlns:atom="http://www.w3.org/2005/Atom"
+	xmlns:sy="http://purl.org/rss/1.0/modules/syndication/"
+	xmlns:slash="http://purl.org/rss/1.0/modules/slash/"
+	xmlns:georss="http://www.georss.org/georss"
+        xmlns:geo="http://www.w3.org/2003/01/geo/wgs84_pos#"
+        xmlns:media="http://search.yahoo.com/mrss/"><channel>
+<title>ereslibre.es</title>
+<atom:link href="https://www.ereslibre.es/blog/feed.xml" rel="self" type="application/rss+xml" />
+<link>https://www.ereslibre.es/</link>
+<description><![CDATA[Libre Software lover. Hacker.]]></description>
+<language>en</language>
+<pubDate>Wed, 30 Oct 2024 21:32:51 +0100</pubDate>
+<lastBuildDate>Wed, 30 Oct 2024 21:32:51 +0100</lastBuildDate>
+<generator>Emacs 28.2 Org-mode 9.5.5</generator>
+<webMaster>ereslibre@ereslibre.es (Rafael Fernández López)</webMaster>
+<image>
+<url>http://s.gravatar.com/avatar/bdc4bd9b9b18388588ed2273adaee8a6?s=128</url>
+<title>ereslibre.es</title>
+<link>https://www.ereslibre.es/</link>
+</image>
+
+<div id="table-of-contents" role="doc-toc">
+<h2>Table of Contents</h2>
+<div id="text-table-of-contents" role="doc-toc">
+<ul>
+<li><a href="#orgeb41ac8">The Kubernetes contribution that could have been</a></li>
+<li><a href="#org0b8c25a">How to contribute to Kubernetes</a></li>
+<li><a href="#org07e49c2">Vendoring Kubernetes</a></li>
+<li><a href="#org8b90f61">Building a personal website with org-mode</a></li>
+</ul>
+</div>
+</div>
+
+<item>
+<title>file:2020/01/the-kubernetes-contribution-that-could-have-been.org</title>
+<link>https://www.ereslibre.es/blog/2020/01/the-kubernetes-contribution-that-could-have-been.html</link>
+<guid isPermaLink="false">https://www.ereslibre.es/blog/2020/01/the-kubernetes-contribution-that-could-have-been.html</guid>
+<pubDate>Sat, 04 Jan 2020 21:17:00 +0100</pubDate>
+
+<description><![CDATA[
+<div id="outline-container-org333a93f" class="outline-3">
+<h3 id="org333a93f">The What</h3>
+<div class="outline-text-3" id="text-org333a93f">
+<p>
+The problem we are going to explore in this post arised whenever you
+have at least a Layer 4 component between the client and the server.
+These components, such as load balancers, don't understand anything
+further than UDP or TCP if they are operating at the L4. Of course you
+can have L7 aware load balancers, but that is not in the scope of this
+blog post.
+</p>
+
+<p>
+Also, these components have to deal with problems like dangling
+connections, and so they will try to protect themselves from bad
+actors. One way in which they can protect their precious resources
+is by killing connections they believe unused for a given period of
+time.
+</p>
+
+<p>
+This is what I spotted. Stay with me.
+</p>
+
+<p>
+Note that in Kubernetes there are many clients. This can range from
+the standard <code>kubectl</code> CLI tool, to the <code>client-go</code> library that many
+projects use, to other client libraries. In the end, many components
+in Kubernetes are clients themselves, watching resources and
+performing changes on them. What we perceive as Kubernetes is the sum
+of all these components working together, each one doing a well defined
+and controlled task.
+</p>
+
+<p>
+The issue we are exploring today involves any client that needs to go
+through a Layer 4 component to reach the apiserver, while keeping long
+lived connections in an idle state.
+</p>
+
+<p>
+And so, our work bench starts to shape up. Let's use <code>kind</code> to create
+a local HA cluster. <code>kind</code> will create an HAProxy balancer instance
+automatically if we request to set up more than one control plane
+instance.
+</p>
+
+<p>
+<a href="https://github.com/kubernetes-sigs/kind/compare/master...ereslibre:low-timeout.patch">I have written a patch for <code>kind</code></a> that makes the problem pop up in a
+shorter period of time. If you are going to try this out I strongly
+suggest you to apply this patch and build <code>kind</code> with it for the rest
+of the exercise.
+</p>
+
+<p>
+Let's create a <code>kind</code> cluster:
+</p>
+
+<div class="org-example-container"><pre class="example">
+~ &gt; kind create cluster --config ~/.kind/3-masters-1-worker.yaml
+</pre></div>
+
+<p>
+Where my <code>~/.kind/3-masters-1-worker.yaml</code> configuration file looks
+like:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-yaml">kind: Cluster
+apiVersion: kind.sigs.k8s.io/v1alpha3
+nodes:
+- role: control-plane
+- role: control-plane
+- role: control-plane
+- role: worker
+</pre>
+</div>
+
+<p>
+After the cluster has been created and is up, we can try to reproduce
+one of the commands that trigger the problem:
+</p>
+
+<div class="org-example-container"><pre class="example">
+~ &gt; kubectl exec -it kube-apiserver-kind-control-plane -n kube-system sh
+# ⏎
+~ &gt;
+</pre></div>
+
+<p>
+The connection was closed. That's right. I did nothing. Let's check
+some other commands, like <code>kubectl logs -f</code>:
+</p>
+
+<div class="org-example-container"><pre class="example">
+~ &gt; kubectl logs -lk8s-app=kube-dns -f -n kube-system
+...
+error: unexpected EOF
+~ &gt;
+</pre></div>
+
+<p>
+So you start to see what's going on. You can reproduce this problem
+with every command that leaves a connection open, on a stream where
+changes might or might not happen.
+</p>
+
+<p>
+Let's look at what HAProxy has to say when inspecting its <code>stats</code>
+socket. Install <code>socat</code>:
+</p>
+
+<div class="org-example-container"><pre class="example">
+~ &gt; docker exec $(docker ps -q -f name=kind-external-load-balancer) apk add socat
+fetch http://dl-cdn.alpinelinux.org/alpine/v3.9/main/x86_64/APKINDEX.tar.gz
+fetch http://dl-cdn.alpinelinux.org/alpine/v3.9/community/x86_64/APKINDEX.tar.gz
+(1/5) Installing ncurses-terminfo-base (6.1_p20190105-r0)
+(2/5) Installing ncurses-terminfo (6.1_p20190105-r0)
+(3/5) Installing ncurses-libs (6.1_p20190105-r0)
+(4/5) Installing readline (7.0.003-r1)
+(5/5) Installing socat (1.7.3.2-r5)
+Executing busybox-1.29.3-r10.trigger
+OK: 15 MiB in 22 packages
+</pre></div>
+
+<p>
+And watch the HAProxy sessions:
+</p>
+
+<div class="org-example-container"><pre class="example">
+~ &gt; docker exec $(docker ps -q -f name=kind-external-load-balancer) watch -n1 'echo "show sess" | socat /var/run/haproxy.sock stdio' | grep "172.17.0.1"
+</pre></div>
+
+<p>
+Now, let's try to tail again, while we are watching the sessions:
+</p>
+
+<div class="org-example-container"><pre class="example">
+~ &gt; kubectl logs -lk8s-app=kube-dns -f -n kube-system
+...
+error: unexpected EOF
+~ &gt;
+</pre></div>
+
+<p>
+And so, what we see on the output from the session watch is the
+following:
+</p>
+
+<div class="org-example-container"><pre class="example">
+0x55f6155b8720: proto=tcpv4 src=172.17.0.1:60120 fe=control-plane be=kube-apiservers srv=kind-control-plane ts=00 age=0s calls=2 rate=2 cpu=0 lat=0 rq[f=848202h,i=0,an=00h,rx=4s,wx=,ax=] rp[f=80048202h,i=0,an=00h,rx=4s,wx=,ax=] s0=[8,200008h,fd=31,ex=] s1=[8,200018h,fd=46,ex=] exp=4s
+0x55f6155b8720: proto=tcpv4 src=172.17.0.1:60120 fe=control-plane be=kube-apiservers srv=kind-control-plane ts=00 age=1s calls=2 rate=0 cpu=0 lat=0 rq[f=848202h,i=0,an=00h,rx=3s,wx=,ax=] rp[f=80048202h,i=0,an=00h,rx=3s,wx=,ax=] s0=[8,200008h,fd=31,ex=] s1=[8,200018h,fd=46,ex=] exp=3s
+0x55f6155b8720: proto=tcpv4 src=172.17.0.1:60120 fe=control-plane be=kube-apiservers srv=kind-control-plane ts=00 age=2s calls=2 rate=0 cpu=0 lat=0 rq[f=848202h,i=0,an=00h,rx=2s,wx=,ax=] rp[f=80048202h,i=0,an=00h,rx=2s,wx=,ax=] s0=[8,200008h,fd=31,ex=] s1=[8,200018h,fd=46,ex=] exp=2s
+0x55f6155b8720: proto=tcpv4 src=172.17.0.1:60120 fe=control-plane be=kube-apiservers srv=kind-control-plane ts=00 age=3s calls=2 rate=0 cpu=0 lat=0 rq[f=848202h,i=0,an=00h,rx=1s,wx=,ax=] rp[f=80048202h,i=0,an=00h,rx=1s,wx=,ax=] s0=[8,200008h,fd=31,ex=] s1=[8,200018h,fd=46,ex=] exp=1s
+0x55f6155b8720: proto=tcpv4 src=172.17.0.1:60120 fe=control-plane be=kube-apiservers srv=kind-control-plane ts=00 age=4s calls=2 rate=0 cpu=0 lat=0 rq[f=848202h,i=0,an=00h,rx=0s,wx=,ax=] rp[f=80048202h,i=0,an=00h,rx=0s,wx=,ax=] s0=[8,200008h,fd=31,ex=] s1=[8,200018h,fd=46,ex=] exp=0s
+</pre></div>
+
+<p>
+Here we can see the expiration countdown (through the <code>exp</code> in each
+log). If no activity happens during this time, when <code>exp</code> reaches 0,
+HAProxy will close both connections.
+</p>
+
+<p>
+So, as long as there is some traffic, everything will be fine. The L4
+component will update its stats and will not close the connection.
+When that stream is silent for long enough, the L4 component will
+rightfully close the connection. After all it cannot tell if it's
+bad actors at the other side causing this behavior, or if any of the
+myriad of things that can go wrong with networking might have
+happened.
+</p>
+
+<p>
+I could spot this behavior with a number of client commands:
+</p>
+
+<ul class="org-ul">
+<li><code>kubectl exec -it</code></li>
+<li><code>kubectl attach</code></li>
+<li><code>kubectl logs -f</code></li>
+<li><code>kubectl get -w</code></li>
+</ul>
+
+<p>
+I'm sure this is not a complete list, but these are the ones I spotted
+and tried to fix in some way.
+</p>
+
+<p>
+Speaking of which&#x2026;
+</p>
+</div>
+</div>
+
+<div id="outline-container-org743f028" class="outline-3">
+<h3 id="org743f028">The How</h3>
+<div class="outline-text-3" id="text-org743f028">
+</div>
+
+<div id="outline-container-org9b36fd5" class="outline-4">
+<h4 id="org9b36fd5">L4 fine tuning</h4>
+<div class="outline-text-4" id="text-org9b36fd5">
+<p>
+At a first sight it looks like configuration could help here. We
+increase the timeout, and that's it, right? Well, there are some
+downsides to that:
+</p>
+
+<ul class="org-ul">
+<li>Increasing timeouts in general calls for harder situations to
+debug. They happen less frequently, but they do happen. And when
+they do&#x2026;</li>
+
+<li>It takes more time to reproduce until you find what's going on.</li>
+
+<li>Resources are limited; if you mix higher timeouts with bad actors
+you get a higher allocation of sockets and possibly an exhaustion of
+certain resources.</li>
+</ul>
+
+<p>
+All in all, I tried this approach nevertheless just for the sake of
+it.
+</p>
+
+<p>
+I'll spare you all the possibilities I tried and went through. I ended
+up setting <a href="http://cbonte.github.io/haproxy-dconv/2.1/configuration.html#4-timeout%2520tunnel">HAProxy's <code>timeout tunnel</code></a> to an unreasonable high enough
+timeout value (like 1 year), to see what happened.
+</p>
+
+<p>
+The timeout tunnel seemed to be exactly what I was looking for:
+</p>
+
+<blockquote>
+<p>
+The tunnel timeout applies when a bidirectional connection is established
+between a client and a server, and the connection remains inactive in both
+directions. This timeout supersedes both the client and server timeouts once
+the connection becomes a tunnel. In TCP, this timeout is used as soon as no
+analyzer remains attached to either connection (e.g. tcp content rules are
+accepted).
+</p>
+</blockquote>
+
+<p>
+And so, HAProxy refused to start with the given configuration:
+</p>
+
+<div class="org-example-container"><pre class="example">
+[ALERT] 330/181418 (1) : parsing [/usr/local/etc/haproxy/haproxy.cfg:17] : timer overflow in argument '8760h' to 'timeout tunnel' (maximum value is 2147483647 ms or ~24.8 days)
+</pre></div>
+
+<p>
+Even if I wanted to go with this apparently bad idea, HAProxy would
+refuse to keep a connection alive any longer than ~24.8 days. Fair
+enough.
+</p>
+
+<p>
+If it wasn't obvious enough before, playing with timeouts on the L4
+load balancer configuration was not going to get me much
+further. Moreover, if anything L4-only aware got in the middle, we
+would still have the same issue if this new component had lower
+timeouts, what would be perfectly possible (and reasonable).
+</p>
+
+<p>
+At this point I started to look at the problem from a different
+angle. The application should make sure to generate some kind of
+traffic, even if there's no data on the stream, so anything between
+the client and the server would notice that there's something
+happening, and that the stream is not idle from the TCP perspective.
+</p>
+</div>
+</div>
+
+<div id="outline-container-org436c438" class="outline-4">
+<h4 id="org436c438">The Kubernetes patch</h4>
+<div class="outline-text-4" id="text-org436c438">
+<p>
+The idea at this point was to include a new parameter in <code>kubectl</code>
+called <code>--ping-interval</code>. We'll revisit what ping means in what context.
+</p>
+
+<p>
+I started looking into how <code>kubectl</code> implemented the commands
+previously mentioned.
+</p>
+
+<p>
+Let's run <code>kubectl</code> with high verbosity to learn what it is doing
+behind the scenes.
+</p>
+</div>
+
+<ul class="org-ul">
+<li><a id="org14b6d76"></a><code>kubectl exec -it</code><br />
+<div class="outline-text-5" id="text-org14b6d76">
+<div class="org-example-container"><pre class="example">
+~ &gt; kubectl exec -v8 -it kube-apiserver-kind-control-plane -n kube-system sh
+(output omitted)
+I1127 23:54:11.979201   28755 round_trippers.go:427] Request Headers:
+I1127 23:54:11.979209   28755 round_trippers.go:431]     X-Stream-Protocol-Version: v4.channel.k8s.io
+I1127 23:54:11.979216   28755 round_trippers.go:431]     X-Stream-Protocol-Version: v3.channel.k8s.io
+I1127 23:54:11.979221   28755 round_trippers.go:431]     X-Stream-Protocol-Version: v2.channel.k8s.io
+I1127 23:54:11.979228   28755 round_trippers.go:431]     X-Stream-Protocol-Version: channel.k8s.io
+I1127 23:54:11.979234   28755 round_trippers.go:431]     User-Agent: kubectl/v1.18.0 (linux/amd64) kubernetes/9905a33
+I1127 23:54:11.995835   28755 round_trippers.go:446] Response Status: 101 Switching Protocols in 16 milliseconds
+I1127 23:54:11.995852   28755 round_trippers.go:449] Response Headers:
+I1127 23:54:11.995860   28755 round_trippers.go:452]     Connection: Upgrade
+I1127 23:54:11.995867   28755 round_trippers.go:452]     Upgrade: SPDY/3.1
+I1127 23:54:11.995873   28755 round_trippers.go:452]     X-Stream-Protocol-Version: v4.channel.k8s.io
+I1127 23:54:11.995878   28755 round_trippers.go:452]     Date: Wed, 27 Nov 2019 22:54:11 GMT
+# ⏎
+~ &gt;
+</pre></div>
+</div>
+</li>
+
+<li><a id="org47e1d40"></a><code>kubectl attach</code><br />
+<div class="outline-text-5" id="text-org47e1d40">
+<div class="org-example-container"><pre class="example">
+~ &gt; kubectl attach -v8 kube-apiserver-kind-control-plane -n kube-system
+(output omitted)
+I1127 23:59:52.210600   31733 round_trippers.go:420] POST https://127.0.0.1:35411/api/v1/namespaces/kube-system/pods/kube-apiserver-kind-control-plane/attach?container=kube-apiserver&amp;stderr=true&amp;stdout=true
+I1127 23:59:52.210609   31733 round_trippers.go:427] Request Headers:
+I1127 23:59:52.210614   31733 round_trippers.go:431]     X-Stream-Protocol-Version: v4.channel.k8s.io
+I1127 23:59:52.210618   31733 round_trippers.go:431]     X-Stream-Protocol-Version: v3.channel.k8s.io
+I1127 23:59:52.210621   31733 round_trippers.go:431]     X-Stream-Protocol-Version: v2.channel.k8s.io
+I1127 23:59:52.210625   31733 round_trippers.go:431]     X-Stream-Protocol-Version: channel.k8s.io
+I1127 23:59:52.210631   31733 round_trippers.go:431]     User-Agent: kubectl/v1.18.0 (linux/amd64) kubernetes/9905a33
+I1127 23:59:52.298756   31733 round_trippers.go:446] Response Status: 101 Switching Protocols in 88 milliseconds
+I1127 23:59:52.298777   31733 round_trippers.go:449] Response Headers:
+I1127 23:59:52.298783   31733 round_trippers.go:452]     X-Stream-Protocol-Version: v4.channel.k8s.io
+I1127 23:59:52.298788   31733 round_trippers.go:452]     Date: Wed, 27 Nov 2019 22:59:52 GMT
+I1127 23:59:52.298793   31733 round_trippers.go:452]     Connection: Upgrade
+I1127 23:59:52.298798   31733 round_trippers.go:452]     Upgrade: SPDY/3.1
+~ &gt;
+</pre></div>
+</div>
+</li>
+
+<li><a id="org579c74b"></a><code>kubectl logs -f</code><br />
+<div class="outline-text-5" id="text-org579c74b">
+<div class="org-example-container"><pre class="example">
+~ &gt; kubectl logs -v8 -lk8s-app=kube-dns -f -n kube-system
+(output omitted)
+I1127 23:58:21.008411   31143 round_trippers.go:420] GET https://127.0.0.1:35411/api/v1/namespaces/kube-system/pods/coredns-5644d7b6d9-8vflb/log?follow=true&amp;tailLines=10
+I1127 23:58:21.008411   31143 round_trippers.go:420] GET https://127.0.0.1:35411/api/v1/namespaces/kube-system/pods/coredns-5644d7b6d9-r2vkw/log?follow=true&amp;tailLines=10
+I1127 23:58:21.008436   31143 round_trippers.go:427] Request Headers:
+I1127 23:58:21.008440   31143 round_trippers.go:427] Request Headers:
+I1127 23:58:21.008445   31143 round_trippers.go:431]     Accept: application/json, */*
+I1127 23:58:21.008447   31143 round_trippers.go:431]     Accept: application/json, */*
+I1127 23:58:21.008452   31143 round_trippers.go:431]     User-Agent: kubectl/v1.18.0 (linux/amd64) kubernetes/9905a33
+I1127 23:58:21.008456   31143 round_trippers.go:431]     User-Agent: kubectl/v1.18.0 (linux/amd64) kubernetes/9905a33
+I1127 23:58:21.021126   31143 round_trippers.go:446] Response Status: 200 OK in 12 milliseconds
+I1127 23:58:21.021151   31143 round_trippers.go:449] Response Headers:
+I1127 23:58:21.021162   31143 round_trippers.go:452]     Content-Type: text/plain
+I1127 23:58:21.021179   31143 round_trippers.go:452]     Date: Wed, 27 Nov 2019 22:58:21 GMT
+I1127 23:58:21.021187   31143 round_trippers.go:452]     Cache-Control: no-cache, private
+.:53
+2019-11-27T22:37:59.639Z [INFO] plugin/reload: Running configuration MD5 = f64cb9b977c7dfca58c4fab108535a76
+2019-11-27T22:37:59.639Z [INFO] CoreDNS-1.6.2
+2019-11-27T22:37:59.639Z [INFO] linux/amd64, go1.12.8, 795a3eb
+CoreDNS-1.6.2
+linux/amd64, go1.12.8, 795a3eb
+I1127 23:58:21.023865   31143 round_trippers.go:446] Response Status: 200 OK in 15 milliseconds
+I1127 23:58:21.023881   31143 round_trippers.go:449] Response Headers:
+I1127 23:58:21.023890   31143 round_trippers.go:452]     Cache-Control: no-cache, private
+I1127 23:58:21.023908   31143 round_trippers.go:452]     Content-Type: text/plain
+I1127 23:58:21.023915   31143 round_trippers.go:452]     Date: Wed, 27 Nov 2019 22:58:21 GMT
+.:53
+2019-11-27T22:37:59.608Z [INFO] plugin/reload: Running configuration MD5 = f64cb9b977c7dfca58c4fab108535a76
+2019-11-27T22:37:59.608Z [INFO] CoreDNS-1.6.2
+2019-11-27T22:37:59.608Z [INFO] linux/amd64, go1.12.8, 795a3eb
+CoreDNS-1.6.2
+linux/amd64, go1.12.8, 795a3eb
+F1127 23:58:22.025841   31143 helpers.go:114] error: unexpected EOF
+~ &gt;
+</pre></div>
+</div>
+</li>
+
+<li><a id="orge74cd8b"></a><code>kubectl get -w</code><br />
+<div class="outline-text-5" id="text-orge74cd8b">
+<div class="org-example-container"><pre class="example">
+~ &gt; kubectl get -v8 -w pods -n kube-system
+(output omitted)
+I1128 00:07:33.132398   36629 round_trippers.go:420] GET https://127.0.0.1:35411/api/v1/namespaces/kube-system/pods?resourceVersion=3023&amp;watch=true
+I1128 00:07:33.132412   36629 round_trippers.go:427] Request Headers:
+I1128 00:07:33.132421   36629 round_trippers.go:431]     Accept: application/json;as=Table;v=v1beta1;g=meta.k8s.io, application/json
+I1128 00:07:33.132430   36629 round_trippers.go:431]     User-Agent: kubectl/v1.18.0 (linux/amd64) kubernetes/9905a33
+I1128 00:07:33.133569   36629 round_trippers.go:446] Response Status: 200 OK in 1 milliseconds
+I1128 00:07:33.133583   36629 round_trippers.go:449] Response Headers:
+I1128 00:07:33.133590   36629 round_trippers.go:452]     Date: Wed, 27 Nov 2019 23:07:33 GMT
+I1128 00:07:33.133594   36629 round_trippers.go:452]     Cache-Control: no-cache, private
+I1128 00:07:33.133599   36629 round_trippers.go:452]     Content-Type: application/json
+I1128 00:07:34.135522   36629 streamwatcher.go:114] Unexpected EOF during watch stream event decoding: unexpected EOF
+~ &gt;
+</pre></div>
+</div>
+</li>
+
+<li><a id="orgbfedf5a"></a>Observations<br />
+<div class="outline-text-5" id="text-orgbfedf5a">
+<p>
+At first sight, <code>exec</code> and <code>attach</code> are very similar. Both are
+upgrading the HTTP connection to <code>SPDY/3.1</code>.
+</p>
+
+<p>
+On the other hand, <code>logs -f</code> and <code>get -w</code> are <code>HTTP/1.1</code> requests.
+</p>
+</div>
+</li>
+
+<li><a id="org4585cec"></a>The patch<br />
+<div class="outline-text-5" id="text-org4585cec">
+<p>
+The pull request I opened can be <a href="https://github.com/kubernetes/kubernetes/pull/81179">seen here</a>. Please, bear in mind that
+it was a heavy WIP and many things are not even considered. Let's go through it.
+</p>
+</div>
+</li>
+
+<li><a id="org6e6c11e"></a>The strategy<br />
+<div class="outline-text-5" id="text-org6e6c11e">
+<p>
+Different commands had slightly different strategies.
+</p>
+</div>
+
+<ul class="org-ul">
+<li><a id="org3112886"></a><code>exec -it</code> and <code>attach</code><br />
+<div class="outline-text-6" id="text-org3112886">
+<p>
+Both commands are relying on apimachinery's <code>httpstream</code>. The main
+idea was to <a href="https://github.com/ereslibre/kubernetes/blob/9d3894c379bd36be66ba9d00fc5abe8d63f1e6da/staging/src/k8s.io/apimachinery/pkg/util/httpstream/httpstream.go#L76-L77">add a <code>Ping()</code> method to the <code>Connection</code> interface</a>. In
+this case, this method would rely directly on <a href="https://github.com/ereslibre/kubernetes/blob/9d3894c379bd36be66ba9d00fc5abe8d63f1e6da/staging/src/k8s.io/apimachinery/pkg/util/httpstream/spdy/connection.go#L93-L96">calling to the docker's
+<code>spdystream</code> backend</a> (that <a href="https://github.com/docker/spdystream/blob/6480d4af844c189cf5dd913db24ddd339d3a4f85/connection.go#L259-L288">looks like this</a>.)
+</p>
+</div>
+</li>
+
+<li><a id="org1197061"></a><code>logs -f</code><br />
+<div class="outline-text-6" id="text-org1197061">
+<p>
+<code>ResponseWrapper</code> interface <a href="https://github.com/kubernetes/kubernetes/blob/1c99825adfb30f6abb177e85ddb31f2fdef011e1/staging/src/k8s.io/client-go/rest/request.go#L64">has a <code>Stream()</code></a> function, so the idea
+was to <a href="https://github.com/ereslibre/kubernetes/blob/9d3894c379bd36be66ba9d00fc5abe8d63f1e6da/staging/src/k8s.io/client-go/rest/request.go#L67">add a new <code>StreamWithPing()</code></a> function. So users of the
+<code>client-go</code> library could choose which one to use depending on their
+needs, while keeping the original behavior intact.
+</p>
+</div>
+</li>
+
+<li><a id="org68c85a4"></a><code>get -w</code><br />
+<div class="outline-text-6" id="text-org68c85a4">
+<p>
+<code>get -w</code> is another slightly different case. It will run in a loop
+watching for changes, so there's no need to strictly keep the
+connection alive. If the connection is closed on the server end, the
+client could just be instructed to reissue the same request.
+</p>
+</div>
+</li>
+
+<li><a id="org72ed3da"></a><code>client-go</code><br />
+<div class="outline-text-6" id="text-org72ed3da">
+<p>
+Then, a <a href="https://github.com/ereslibre/kubernetes/blob/9d3894c379bd36be66ba9d00fc5abe8d63f1e6da/staging/src/k8s.io/client-go/util/keepalive/keepalive.go"><code>keepalive</code> package</a> would be included into <code>client-go</code>, so it
+could be used with different backends (e.g. <code>spdystreamer</code>, golang's
+<code>net/http</code> and <code>net/http2</code>&#x2026;). This package would define a <code>Pinger</code>
+interface containing a single function: <code>Ping()</code>. The different
+implementations here is in part what I liked the least about this
+proposal. There were several pinger implementations in the PR:
+</p>
+
+<ul class="org-ul">
+<li><a href="https://github.com/ereslibre/kubernetes/tree/9d3894c379bd36be66ba9d00fc5abe8d63f1e6da/staging/src/k8s.io/client-go/util/keepalive/spdy"><code>spdy</code> pinger</a></li>
+<li><a href="https://github.com/ereslibre/kubernetes/tree/9d3894c379bd36be66ba9d00fc5abe8d63f1e6da/staging/src/k8s.io/client-go/util/keepalive/restclient"><code>restclient</code> pinger</a></li>
+<li><a href="https://github.com/ereslibre/kubernetes/tree/9d3894c379bd36be66ba9d00fc5abe8d63f1e6da/staging/src/k8s.io/client-go/util/keepalive/http"><code>http</code> pinger</a></li>
+</ul>
+
+<p>
+While the <a href="https://github.com/ereslibre/kubernetes/blob/9d3894c379bd36be66ba9d00fc5abe8d63f1e6da/staging/src/k8s.io/client-go/util/keepalive/spdy/spdy.go"><code>spdy</code> pinger</a> was clearly the implementation I felt more
+comfortable with, it wasn't the case with the <code>restclient</code> and <code>http</code>
+pinger implementations.
+</p>
+
+<p>
+All my tests were successful with all backends, but the <code>restclient</code>
+and <code>http</code> solutions were working because of the inner implementation
+of the internal socket reuse of golang's <code>net/http</code> internally.
+</p>
+
+<p>
+Apart from that, it wasn't possible to have a dedicated <code>net/http2</code>
+backend because if <code>HTTP/2</code> is used through golang's <code>net/http</code> (that
+includes <a href="https://github.com/golang/go/blob/8adc1e00aa1a92a85b9d6f3526419d49dd7859dd/src/net/http/h2_bundle.go"><code>net/http2</code> in a bundle</a>), it's impossible to access
+<code>net/http2</code> internals from within <code>net/http</code> &#x2013; <a href="https://godoc.org/golang.org/x/net/http2#ClientConn">in particular the
+<code>ClientConn</code> associated with the connection</a>, to <a href="https://github.com/golang/net/blob/c0dbc17a35534bf2e581d7a942408dc936316da4/http2/transport.go#L2349"><code>Ping()</code> the other end</a>.
+Had golang permitted this somehow it would have been possible to take
+advantage of <a href="https://http2.github.io/http2-spec/#PING"><code>HTTP/2</code>'s native ping frame</a>, what would have been
+sufficient to generate some TCP traffic, knowing that the right socket
+would have been used.
+</p>
+
+<p>
+The main problem with the <code>restclient</code> and <code>http</code> pingers is that if
+golang's internal implementation changed and didn't reuse sockets
+under certain circumstances our "pings" wouldn't go through the
+expected TCP socket, what wouldn't count towards TCP traffic after
+all, and eventually the connection would have been closed
+nevertheless.
+</p>
+
+<p>
+Also, there is the problem of what ping means in an <code>HTTP/1.1</code>
+context. In my very first proposal of the PR it was a mere HTTP
+request to <code>scheme://hostPort/healthz</code>. Whether this operation was
+allowed, whether we had permissions to perform this operation, or even
+if the endpoint didn't exist are things we didn't really care
+about. As long as the request was made, and <b><b>some</b></b> TCP traffic made
+it through, the goal was achieved.
+</p>
+
+<p>
+In any case, the solution was not optimal for <code>restclient</code>, neither
+for <code>http</code> and it wasn't possible to properly extract and create a
+dedicated <code>http2</code> pinger because of how golang hides the internal
+implementation of <code>net/http2</code> behind <code>net/http</code> when using <code>HTTP/2</code>
+through <code>net/http</code>.
+</p>
+
+<p>
+And so, while I was thinking about all these problems, and all these
+things I didn't really like about this possible solution, another
+possibility was proposed.
+</p>
+</div>
+</li>
+</ul>
+</li>
+</ul>
+</div>
+
+<div id="outline-container-org0ffc50a" class="outline-4">
+<h4 id="org0ffc50a">The golang patch</h4>
+<div class="outline-text-4" id="text-org0ffc50a">
+<p>
+There was a <a href="https://github.com/golang/net/pull/55">proposal for golang to perform these pings on <code>http2</code>
+automatically by the runtime</a>.
+</p>
+
+<p>
+Despite this solution might not be the definitive one (and only fits
+on <code>http2</code>), I think it's good enough for the ball to get rolling in
+the golang space.
+</p>
+
+<p>
+Knowing that golang will automatically send ping frames to the other
+end at intervals allows us to just configure the intervals and let the
+golang runtime do the rest. Since this is clearly an application layer
+problem I think it makes a lot of sense to have the solution in this
+space.
+</p>
+</div>
+</div>
+</div>
+
+<div id="outline-container-org9da13ff" class="outline-3">
+<h3 id="org9da13ff">Conclusion</h3>
+<div class="outline-text-3" id="text-org9da13ff">
+<p>
+Depending on how this feature lands in golang, and depending on its
+design I might think about this problem again in the Kubernetes space,
+and check again if it makes sense to implement something like
+<code>--ping-interval</code> baked into <code>kubectl</code> and <code>client-go</code>.
+</p>
+
+<p>
+For now, to something different.
+</p>
+</div>
+</div>
+]]></description>
+</item>
+
+
+<item>
+<title>file:2019/09/how-to-contribute-to-kubernetes.org</title>
+<link>https://www.ereslibre.es/blog/2019/09/how-to-contribute-to-kubernetes.html</link>
+<guid isPermaLink="false">https://www.ereslibre.es/blog/2019/09/how-to-contribute-to-kubernetes.html</guid>
+<pubDate>Wed, 11 Sep 2019 00:00:00 +0200</pubDate>
+
+<description><![CDATA[<p>
+The <a href="https://www.meetup.com/Cloud-Native-Madrid/">Cloud Native Madrid meetup</a> was kind enough to have me talking
+about how to contribute to Kubernetes.
+</p>
+
+<p>
+On this talk I focused on how to contribute to the project in general
+terms, and how to get the most out of your first contributions.
+</p>
+
+<p>
+<div class="google-slides-container">
+  <iframe src="https://docs.google.com/presentation/d/e/2PACX-1vTXQ-F3aL4ilwGQDOZ1YtaIo-b6D0NVleClHxFvrPoR0MSIn57D1PyAPQPRwv5p3euV4ScUkE4Z-slG/embed?start=false&loop=false&delayms=3000" frameborder="0" width="100%" allowfullscreen="true" mozallowfullscreen="true" webkitallowfullscreen="true"></iframe>
+</div>
+</p>
+
+<hr />
+
+<p>
+<i class="fas fa-link"></i> <a href="https://docs.google.com/presentation/d/1yOTyr2Bt29a9TH0QdYRbgmkArwB6KH3n2we4gMBZPPo/edit?usp=sharing">Slides</a>
+</p>
+]]></description>
+</item>
+
+
+<item>
+<title>file:2019/09/vendoring-kubernetes.org</title>
+<link>https://www.ereslibre.es/blog/2019/09/vendoring-kubernetes.html</link>
+<guid isPermaLink="false">https://www.ereslibre.es/blog/2019/09/vendoring-kubernetes.html</guid>
+<pubDate>Fri, 06 Sep 2019 21:00:00 +0200</pubDate>
+
+<description><![CDATA[<p>
+Despite using Kubernetes as a module is not encouraged, there are some
+projects that are following this approach.
+</p>
+
+<p>
+In order to make this easier, now that we have <a href="https://github.com/kubernetes/kubernetes/issues/68577#issuecomment-480514862">go modules in
+Kubernetes</a>, I wrote a small tool called <a href="https://github.com/ereslibre/vendor-kubernetes"><code>vendor-kubernetes</code></a>.
+</p>
+
+<p>
+It is highly recommended that you have <code>kubernetes</code> cloned into a
+directory, along with all the staging repositories that will be
+reported on the resulting <code>go.mod</code> file, such as:
+</p>
+
+<div class="org-example-container"><pre class="example">
+~ &gt; tree -L 1 ~/projects/go/src/k8s.io
+/home/ereslibre/projects/go/src/k8s.io
+├── api
+├── apiextensions-apiserver
+├── apimachinery
+├── apiserver
+├── autoscaler
+├── client-go
+├── cli-runtime
+├── cloud-provider
+├── cluster-bootstrap
+├── code-generator
+├── component-base
+├── cri-api
+├── csi-translation-lib
+├── kops
+├── kubeadm
+├── kube-aggregator
+├── kube-controller-manager
+├── kubectl
+├── kubelet
+├── kube-proxy
+├── kubernetes
+├── kube-scheduler
+├── legacy-cloud-providers
+├── metrics
+├── node-api
+├── sample-apiserver
+├── sample-cli-plugin
+├── sample-controller
+├── test-infra
+└── website
+
+30 directories, 0 files
+</pre></div>
+
+<p>
+The usage is very straightforward, you have to pass a
+<code>--kubernetes-version</code> argument, and optionally a <code>--kubernetes-path</code>
+argument, like:
+</p>
+
+<div class="org-example-container"><pre class="example">
+~/p/g/s/g/e/vendor-kubernetes (master) &gt; go run -mod=vendor main.go --kubernetes-tag 1.16.0-beta.1 --kubernetes-path ~/projects/go/src/k8s.io
+require (
+  k8s.io/kubernetes v1.16.0-beta.1
+)
+
+replace (
+  k8s.io/api =&gt; k8s.io/api v0.0.0-20190822053644-6185379c914a
+  k8s.io/apiextensions-apiserver =&gt; k8s.io/apiextensions-apiserver v0.0.0-20190822063004-0670dc4fec4e
+  k8s.io/apimachinery =&gt; k8s.io/apimachinery v0.0.0-20190820074809-31b1e1ea64dc
+  k8s.io/apiserver =&gt; k8s.io/apiserver v0.0.0-20190822060508-785eacbd19ae
+  k8s.io/cli-runtime =&gt; k8s.io/cli-runtime v0.0.0-20190822063658-442a64f3fed7
+  k8s.io/client-go =&gt; k8s.io/client-go v0.0.0-20190822054823-0a74433fb222
+  k8s.io/cloud-provider =&gt; k8s.io/cloud-provider v0.0.0-20190822065847-2058b41dfbb6
+  k8s.io/cluster-bootstrap =&gt; k8s.io/cluster-bootstrap v0.0.0-20190822065536-566e5fc137f7
+  k8s.io/code-generator =&gt; k8s.io/code-generator v0.0.0-20190820100630-060a3d12ce80
+  k8s.io/component-base =&gt; k8s.io/component-base v0.0.0-20190822055535-1f6a258f5d89
+  k8s.io/cri-api =&gt; k8s.io/cri-api v0.0.0-20190820110325-95eec93e2395
+  k8s.io/csi-translation-lib =&gt; k8s.io/csi-translation-lib v0.0.0-20190822070154-f51cd605b3ee
+  k8s.io/kube-aggregator =&gt; k8s.io/kube-aggregator v0.0.0-20190822061015-a4f93a8219ed
+  k8s.io/kube-controller-manager =&gt; k8s.io/kube-controller-manager v0.0.0-20190822065235-826221481525
+  k8s.io/kube-proxy =&gt; k8s.io/kube-proxy v0.0.0-20190822064323-7e0495d8a3ff
+  k8s.io/kube-scheduler =&gt; k8s.io/kube-scheduler v0.0.0-20190822064931-4470440ed041
+  k8s.io/kubectl =&gt; k8s.io/kubectl v0.0.0-20190822071625-14af4a63a1e1
+  k8s.io/kubelet =&gt; k8s.io/kubelet v0.0.0-20190822064626-fa8f3d935631
+  k8s.io/legacy-cloud-providers =&gt; k8s.io/legacy-cloud-providers v0.0.0-20190822070624-3a30a18bba71
+  k8s.io/metrics =&gt; k8s.io/metrics v0.0.0-20190822063337-6c03eb8600ee
+  k8s.io/node-api =&gt; k8s.io/node-api v0.0.0-20190822070940-24e163ffb9e7
+  k8s.io/sample-apiserver =&gt; k8s.io/sample-apiserver v0.0.0-20190822061642-ab22eab63834
+  k8s.io/sample-cli-plugin =&gt; k8s.io/sample-cli-plugin v0.0.0-20190822064016-bcca3cc588da
+  k8s.io/sample-controller =&gt; k8s.io/sample-controller v0.0.0-20190822062306-1b561d990eb5
+)
+</pre></div>
+
+<p>
+If you are missing any of the mentioned dependencies,
+<code>vendor-kubernetes</code> will clone it in memory and resolve the date and
+commit in an automatic fashion:
+</p>
+
+<div class="org-example-container"><pre class="example">
+~/p/g/s/g/e/vendor-kubernetes (master) &gt; rm -rf ~/projects/go/src/k8s.io/cluster-bootstrap/
+~/p/g/s/g/e/vendor-kubernetes (master) &gt; go run -mod=vendor main.go --kubernetes-tag 1.16.0-beta.1 --kubernetes-path ~/projects/go/src/k8s.io
+project /home/ereslibre/projects/go/src/k8s.io/cluster-bootstrap not found; cloning project https://github.com/kubernetes/cluster-bootstrap in memory
+require (
+  k8s.io/kubernetes v1.16.0-beta.1
+)
+
+replace (
+  k8s.io/api =&gt; k8s.io/api v0.0.0-20190822053644-6185379c914a
+  k8s.io/apiextensions-apiserver =&gt; k8s.io/apiextensions-apiserver v0.0.0-20190822063004-0670dc4fec4e
+  k8s.io/apimachinery =&gt; k8s.io/apimachinery v0.0.0-20190820074809-31b1e1ea64dc
+  k8s.io/apiserver =&gt; k8s.io/apiserver v0.0.0-20190822060508-785eacbd19ae
+  k8s.io/cli-runtime =&gt; k8s.io/cli-runtime v0.0.0-20190822063658-442a64f3fed7
+  k8s.io/client-go =&gt; k8s.io/client-go v0.0.0-20190822054823-0a74433fb222
+  k8s.io/cloud-provider =&gt; k8s.io/cloud-provider v0.0.0-20190822065847-2058b41dfbb6
+  k8s.io/cluster-bootstrap =&gt; k8s.io/cluster-bootstrap v0.0.0-20190822065536-566e5fc137f7
+  k8s.io/code-generator =&gt; k8s.io/code-generator v0.0.0-20190820100630-060a3d12ce80
+  k8s.io/component-base =&gt; k8s.io/component-base v0.0.0-20190822055535-1f6a258f5d89
+  k8s.io/cri-api =&gt; k8s.io/cri-api v0.0.0-20190820110325-95eec93e2395
+  k8s.io/csi-translation-lib =&gt; k8s.io/csi-translation-lib v0.0.0-20190822070154-f51cd605b3ee
+  k8s.io/kube-aggregator =&gt; k8s.io/kube-aggregator v0.0.0-20190822061015-a4f93a8219ed
+  k8s.io/kube-controller-manager =&gt; k8s.io/kube-controller-manager v0.0.0-20190822065235-826221481525
+  k8s.io/kube-proxy =&gt; k8s.io/kube-proxy v0.0.0-20190822064323-7e0495d8a3ff
+  k8s.io/kube-scheduler =&gt; k8s.io/kube-scheduler v0.0.0-20190822064931-4470440ed041
+  k8s.io/kubectl =&gt; k8s.io/kubectl v0.0.0-20190822071625-14af4a63a1e1
+  k8s.io/kubelet =&gt; k8s.io/kubelet v0.0.0-20190822064626-fa8f3d935631
+  k8s.io/legacy-cloud-providers =&gt; k8s.io/legacy-cloud-providers v0.0.0-20190822070624-3a30a18bba71
+  k8s.io/metrics =&gt; k8s.io/metrics v0.0.0-20190822063337-6c03eb8600ee
+  k8s.io/node-api =&gt; k8s.io/node-api v0.0.0-20190822070940-24e163ffb9e7
+  k8s.io/sample-apiserver =&gt; k8s.io/sample-apiserver v0.0.0-20190822061642-ab22eab63834
+  k8s.io/sample-cli-plugin =&gt; k8s.io/sample-cli-plugin v0.0.0-20190822064016-bcca3cc588da
+  k8s.io/sample-controller =&gt; k8s.io/sample-controller v0.0.0-20190822062306-1b561d990eb5
+)
+</pre></div>
+
+<p>
+Please, note that Kubernetes itself is not meant to be used as a
+module (subcomponents are). In the meantime, this tool can help you to
+get your <code>go.mod</code> right.
+</p>
+
+<hr />
+
+<p>
+<i class="fab fa-github"></i> GitHub repository: <a href="https://github.com/ereslibre/vendor-kubernetes">https://github.com/ereslibre/vendor-kubernetes</a>
+</p>
+]]></description>
+</item>
+
+
+<item>
+<title>file:2019/09/building-a-personal-website-with-org-mode.org</title>
+<link>https://www.ereslibre.es/blog/2019/09/building-a-personal-website-with-org-mode.html</link>
+<guid isPermaLink="false">https://www.ereslibre.es/blog/2019/09/building-a-personal-website-with-org-mode.html</guid>
+<pubDate>Fri, 06 Sep 2019 20:00:00 +0200</pubDate>
+
+<description><![CDATA[<p>
+It has been a while since I blogged for the last time. My blog was
+old, and I have been avoiding the redesign of my personal site for a very
+long time now.
+</p>
+
+<p>
+I don't plan to port old blog posts, so I'll <a href="https://oldwords.ereslibre.es">keep them as they are</a>, a
+raw and unverified port from a Wordpress installation to Jekyll.
+</p>
+
+<p>
+I wanted something simple, where I could write my thoughts as raw
+as possible. Luckily, I have been doing so for a long time using
+<code>emacs</code>'s <code>org-mode</code> for everything personal and work related. It has
+made a difference in the way I organize, and thought it would be a
+good idea to apply the very same principles to my website and blog. So
+here we are.
+</p>
+
+<p>
+I had some fun along the way with emacs lisp and I'll explain a little
+what I think are the most important points of my setup.
+</p>
+
+<div id="outline-container-orgff21ef5" class="outline-3">
+<h3 id="orgff21ef5">Structure</h3>
+<div class="outline-text-3" id="text-orgff21ef5">
+</div>
+
+<div id="outline-container-orgb0bac52" class="outline-4">
+<h4 id="orgb0bac52">Notes</h4>
+<div class="outline-text-4" id="text-orgb0bac52">
+<p>
+Notes are pages meant to be alive and changing over time. Annotations
+for my future self mainly; posted in the public just in case they help
+someone else. Undated.
+</p>
+
+<p>
+Notes live under <code>content/notes</code>.
+</p>
+</div>
+</div>
+
+<div id="outline-container-org7a85ea6" class="outline-4">
+<h4 id="org7a85ea6">Blog</h4>
+<div class="outline-text-4" id="text-org7a85ea6">
+<p>
+Exactly. Blog posts are what you think they are. Once published, not usually
+updated over time. Dated.
+</p>
+
+<p>
+Blog entries live under <code>content/blog/&lt;year&gt;/&lt;month&gt;/post-name.org</code>.
+</p>
+</div>
+</div>
+
+<div id="outline-container-org41d2433" class="outline-4">
+<h4 id="org41d2433">Front page</h4>
+<div class="outline-text-4" id="text-org41d2433">
+<p>
+The front page is really simple: it contains a list of all the notes
+and blog entries.
+</p>
+
+<p>
+It is dynamically generated from the structure of the project.
+</p>
+</div>
+</div>
+
+<div id="outline-container-org5c57349" class="outline-4">
+<h4 id="org5c57349">RSS</h4>
+<div class="outline-text-4" id="text-org5c57349">
+<p>
+RSS is an XML feed that only applies to blog posts.
+</p>
+
+<p>
+It is dynamically generated as well.
+</p>
+</div>
+</div>
+
+<div id="outline-container-org050cd8e" class="outline-4">
+<h4 id="org050cd8e">Arbitrary static pages</h4>
+<div class="outline-text-4" id="text-org050cd8e">
+<p>
+The <a href="https://www.ereslibre.es/contact.html">contact page</a> is a good example of an arbitrary static page.
+</p>
+
+<p>
+These pages are not included in the list of blog posts or notes.
+</p>
+</div>
+</div>
+</div>
+
+<div id="outline-container-orgdece00d" class="outline-3">
+<h3 id="orgdece00d">Generation</h3>
+<div class="outline-text-3" id="text-orgdece00d">
+<p>
+The generation phase is triggered by calling to <code>emacs</code> in batch mode,
+like so:
+</p>
+
+<div class="org-example-container"><pre class="example">
+emacs -L $(PWD) --batch --script init.el
+</pre></div>
+
+<p>
+<code>init.el</code> is a simple initialization script that will load all elisp
+files inside <code>config</code>. It will then call to <code>(org-publish-all t)</code>.
+</p>
+</div>
+
+<div id="outline-container-org4c2680f" class="outline-4">
+<h4 id="org4c2680f">org-publish project alist</h4>
+<div class="outline-text-4" id="text-org4c2680f">
+<p>
+Defined in <code>config/default.el</code> along with some customization functions.
+</p>
+</div>
+
+<ul class="org-ul">
+<li><a id="orgcc015a9"></a>website-content<br />
+<div class="outline-text-5" id="text-orgcc015a9">
+<p>
+Published using <code>org-html-publish-to-html</code>, will generate the HTML
+files out of org files.
+</p>
+</div>
+
+<ul class="org-ul">
+<li><a id="org39c2dd6"></a>Sitemap generation: <code>content/index.org</code><br />
+<div class="outline-text-6" id="text-org39c2dd6">
+<p>
+Taking advantage of the sitemap functionality, <code>content/index.org</code>
+and the <code>content/blog/feed.org</code> files will be automatically generated.
+The <code>sitemap-function</code> of the <code>website-content</code> project is set to
+<code>ereslibre/sitemap</code>. It looks like:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-elisp">(<span style="font-weight: bold;">defun</span> <span style="font-weight: bold;">ereslibre/sitemap</span> (title list)
+  (<span style="font-weight: bold;">progn</span> (ereslibre/generate-org-rss-feed list)
+         (format <span style="font-style: italic;">"#+options: title:nil\n</span>
+<span style="font-style: italic;">                  #+begin_export html\n</span>
+<span style="font-style: italic;">                  &lt;div class=\"content container front-container\"&gt;</span>
+<span style="font-style: italic;">                    &lt;div class=\"side-by-side\"&gt;</span>
+<span style="font-style: italic;">                      &lt;h1 class=\"post-title\"&gt;Notes&lt;/h1&gt;&lt;hr/&gt;</span>
+<span style="font-style: italic;">                      %s</span>
+<span style="font-style: italic;">                    &lt;/div&gt;</span>
+<span style="font-style: italic;">                    &lt;div class=\"side-by-side\"&gt;</span>
+<span style="font-style: italic;">                      &lt;h1 class=\"post-title\"&gt;Blog&lt;/h1&gt;&lt;hr/&gt;</span>
+<span style="font-style: italic;">                      %s</span>
+<span style="font-style: italic;">                    &lt;/div&gt;</span>
+<span style="font-style: italic;">                  &lt;/div&gt;\n</span>
+<span style="font-style: italic;">                  #+end_export"</span>
+                 (ereslibre/all-entries 'notes list)
+                 (ereslibre/all-entries 'blog list))))
+</pre>
+</div>
+
+<p>
+Writing raw HTML here helps in getting the desired HTML layout easier.
+This will be automatically generated anyway, and I don't have to
+fiddle with this anymore &#x2013; I hope!
+</p>
+
+<p>
+Take the first <code>progn</code> call to <code>ereslibre/generate-org-rss-feed</code> into
+account, we'll check what it does later.
+</p>
+
+<p>
+Each sitemap entry is formatted using <code>ereslibre/sitemap-format-entry</code>,
+creating the link to the given entry:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-elisp">(<span style="font-weight: bold;">defun</span> <span style="font-weight: bold;">ereslibre/sitemap-format-entry</span> (entry style project)
+  (<span style="font-weight: bold;">let</span> ((date (ereslibre/org-publish-find-explicit-date entry project)))
+    `(<span style="font-weight: bold;">:content</span> ,(format <span style="font-style: italic;">"&lt;div class=\"post-preview\"&gt;</span>
+<span style="font-style: italic;">                            &lt;h2 class=\"post-title\"&gt;%s&lt;/h2&gt;</span>
+<span style="font-style: italic;">                            &lt;span class=\"post-date\"&gt;%s&lt;/span&gt;</span>
+<span style="font-style: italic;">                         &lt;/div&gt;"</span>
+                        (org-export-string-as (format <span style="font-style: italic;">"[[file:%s][%s]]"</span> entry (org-publish-find-title entry project)) 'html t)
+                        (<span style="font-weight: bold;">if</span> date
+                            (format-time-string <span style="font-style: italic;">"%Y-%m-%d"</span> date)
+                          <span style="font-style: italic;">"&amp;nbsp;"</span>))
+      <span style="font-weight: bold;">:entry</span> ,entry)))
+</pre>
+</div>
+</div>
+</li>
+
+<li><a id="org5982546"></a>Feed RSS generation: <code>content/blog/feed.org</code><br />
+<div class="outline-text-6" id="text-org5982546">
+<p>
+<code>ox-rss</code> expects a single file with all blog posts, but this is not
+how my set up works, so the <code>feed.org</code> file will be automatically
+generated &#x2013; this has some caveats, though.
+</p>
+
+<p>
+The contents <code>ox-rss</code> expects are of the form:
+</p>
+
+<div class="org-src-container"><pre class="example">
+#+title: ereslibre.es
+
+* [[file:year/month/some-post.org][Some post]]
+ :PROPERTIES:
+ :RSS_PERMALINK: blog/year/month/some-post.html
+ :PUBDATE:  2019-09-06
+ :ID:       0b382fe7-f943-4997-8568-28179abe8f23
+ :END:
+Blog post contents, or description.
+
+* [[file:year/month/some-other-post.org][Some other post]]
+ :PROPERTIES:
+ :RSS_PERMALINK: blog/year/month/some-other-post.html
+ :PUBDATE:  2019-09-06
+ :ID:       d0d46dcf-ae23-42e5-b279-b17956b3d82a
+ :END:
+Blog post contents, or description.
+</pre></div>
+
+<p>
+The call on <code>ereslibre/sitemap</code> to <code>ereslibre/generate-org-rss-feed</code>
+is what generates the RSS feed contents. <code>content/blog/feed.org</code> file
+will be created, listing the contents of all blog posts.
+</p>
+
+<div class="org-src-container">
+<pre class="src src-elisp">(<span style="font-weight: bold;">defun</span> <span style="font-weight: bold;">ereslibre/generate-org-rss-feed</span> (list)
+  (<span style="font-weight: bold;">let</span> ((blog-entries (seq-filter (apply-partially #'ereslibre/is-entry-of-type 'blog) (cdr list))))
+    (<span style="font-weight: bold;">let*</span> ((rss-contents (mapconcat #'ereslibre/rss-entry blog-entries <span style="font-style: italic;">"\n\n"</span>))
+           (full-rss-contents (concat <span style="font-style: italic;">"#+title: ereslibre.es\n\n"</span> rss-contents)))
+      (write-region full-rss-contents nil <span style="font-style: italic;">"./content/blog/feed.org"</span>))))
+</pre>
+</div>
+
+<p>
+The <code>ereslibre/rss-entry</code> function looks like:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-elisp">(<span style="font-weight: bold;">defun</span> <span style="font-weight: bold;">ereslibre/rss-entry</span> (entry)
+  (<span style="font-weight: bold;">let*</span> ((entry (plist-get (car entry) <span style="font-weight: bold;">:entry</span>))
+         (title (org-publish-find-title entry (ereslibre/website-project)))
+         (date (org-publish-find-date entry (ereslibre/website-project)))
+         (link (concat (file-name-sans-extension entry) <span style="font-style: italic;">".html"</span>))
+         (source-file (concat (file-name-as-directory <span style="font-style: italic;">"content"</span>) entry))
+         (source-file-dir (file-name-directory source-file))
+         (home-url-prefix (plist-get (cdr (ereslibre/rss-project)) <span style="font-weight: bold;">:html-link-home</span>))
+         (contents (<span style="font-weight: bold;">with-temp-buffer</span>
+                     (org-mode)
+                     (insert-file-contents source-file)
+                     (beginning-of-buffer)
+                     <span style="font-weight: bold; font-style: italic;">;; </span><span style="font-weight: bold; font-style: italic;">demote all headlines</span>
+                     (<span style="font-weight: bold;">save-excursion</span>
+                       (<span style="font-weight: bold;">while</span> (re-search-forward <span style="font-style: italic;">"^\\*"</span> nil t)
+                         (replace-match <span style="font-style: italic;">"**"</span>)))
+                     <span style="font-weight: bold; font-style: italic;">;; </span><span style="font-weight: bold; font-style: italic;">remove certain attributes from inserted org file</span>
+                     (<span style="font-weight: bold;">save-excursion</span>
+                       (<span style="font-weight: bold;">while</span> (re-search-forward <span style="font-style: italic;">"^#\\+</span><span style="font-weight: bold; font-style: italic;">\\</span><span style="font-weight: bold; font-style: italic;">(</span><span style="font-style: italic;">title</span><span style="font-weight: bold; font-style: italic;">\\</span><span style="font-weight: bold; font-style: italic;">|</span><span style="font-style: italic;">date</span><span style="font-weight: bold; font-style: italic;">\\</span><span style="font-weight: bold; font-style: italic;">)</span><span style="font-style: italic;">.*"</span> nil t)
+                         (replace-match <span style="font-style: italic;">""</span>)))
+                     <span style="font-weight: bold; font-style: italic;">;; </span><span style="font-weight: bold; font-style: italic;">transcode embedded links to files -- e.g. expand relative paths</span>
+                     (<span style="font-weight: bold;">save-excursion</span>
+                       (<span style="font-weight: bold;">while</span> (re-search-forward <span style="font-style: italic;">"\\[file:</span><span style="font-weight: bold; font-style: italic;">\\</span><span style="font-weight: bold; font-style: italic;">(</span><span style="font-style: italic;">[</span><span style="font-style: italic;">^</span><span style="font-style: italic;">]]+</span><span style="font-weight: bold; font-style: italic;">\\</span><span style="font-weight: bold; font-style: italic;">)</span><span style="font-style: italic;">"</span> nil t)
+                         (<span style="font-weight: bold;">let*</span> ((match (match-string 1))
+                                (element (<span style="font-weight: bold;">save-match-data</span> (org-element-at-point))))
+                           (<span style="font-weight: bold;">when</span> (not (<span style="font-weight: bold;">or</span> (eq (org-element-type element) 'example-block)
+                                          (eq (org-element-type element) 'src-block)))
+                             (replace-match
+                              (concat <span style="font-style: italic;">"["</span> home-url-prefix
+                                      (file-name-sans-extension
+                                       (file-relative-name
+                                        (expand-file-name match source-file-dir)
+                                        <span style="font-style: italic;">"content"</span>))
+                                      <span style="font-style: italic;">".html"</span>))))))
+                     (buffer-string))))
+    (<span style="font-weight: bold;">with-temp-buffer</span>
+      (insert (format <span style="font-style: italic;">"* [[file:%s][%s]]\n"</span> (ereslibre/path-relative-from-to-relative-to entry <span style="font-style: italic;">"content"</span> <span style="font-style: italic;">"content/blog"</span>) title))
+      (org-set-property <span style="font-style: italic;">"RSS_PERMALINK"</span> link)
+      (org-set-property <span style="font-style: italic;">"PUBDATE"</span> (format-time-string <span style="font-style: italic;">"%Y-%m-%d"</span> date))
+      (insert contents)
+      (buffer-string))))
+</pre>
+</div>
+
+<p>
+It is worth dissecting what tasks it performs:
+</p>
+
+<ul class="org-ul">
+<li>Insert the contents of the target org file inside a temporary buffer</li>
+<li>Demote all headlines from the inserted content</li>
+<li>Transcode embedded links to other relative files. Since we are copying
+and pasting the contents of a file that is in other subdirectory
+(<code>content/blog/year/month</code>), all its relative references to other
+files will be broken when writing the <code>content/blog/feed.org</code> file
+<ul class="org-ul">
+<li><code>ereslibre/path-relative-from-to-relative-to</code> rewrites a relative
+path from the original directory, to a relative path from the
+target directory. This is used for the toplevel entries in <code>feed.org</code>
+and for correctness, since it's not really used when publishing &#x2013;
+as far as I can tell</li>
+<li>RSS readers won't know how to handle relative links like
+<code>../../../contact.html</code>, so all <code>[https://www.ereslibre.es/blog/2019/09/some-file.html]</code> occurrences
+will be transcoded into a
+<code>[https://html-link-home/some-path/some-file]</code>, only if they are
+not in <code>src</code> or <code>example</code> blocks</li>
+</ul></li>
+<li>Write the entry itself
+<ul class="org-ul">
+<li>Insert the link to the blog post org file</li>
+<li>Add <code>RSS_PERMALINK</code> and <code>PUBDATE</code> org properties</li>
+<li>Insert the modified contents of the blog post</li>
+</ul></li>
+</ul>
+</div>
+</li>
+</ul>
+</li>
+
+<li><a id="org98490f0"></a>website-assets<br />
+<div class="outline-text-5" id="text-org98490f0">
+<p>
+Published using <code>org-publish-attachment</code>. This will copy all assets
+from <code>assets</code> inside <code>public_html/assets</code>. These are strictly template
+related assets.
+</p>
+</div>
+</li>
+
+<li><a id="org2188176"></a>website-content-assets<br />
+<div class="outline-text-5" id="text-org2188176">
+<p>
+Published using <code>org-publish-attachment</code>. This will copy all assets
+from <code>content</code> to <code>public_html</code>. These are assets related to blog
+posts or pages themselves.
+</p>
+</div>
+</li>
+
+<li><a id="org414d741"></a>website-rss<br />
+<div class="outline-text-5" id="text-org414d741">
+<p>
+RSS generation using the auto generated <code>content/blog/feed.org</code> file,
+that was created during the <code>website-content</code> publishing. It will only
+generate a target <code>public_html/blog/feed.xml</code> with a list of all the
+available blog posts.
+</p>
+</div>
+</li>
+</ul>
+</div>
+</div>
+
+<div id="outline-container-orgfa031f6" class="outline-3">
+<h3 id="orgfa031f6">Publishing</h3>
+<div class="outline-text-3" id="text-orgfa031f6">
+<p>
+I wanted something really minimal. I migrated my whole website to
+<a href="https://www.netlify.com">Netlify</a> and connected it to my <a href="https://github.com/ereslibre/ereslibre.es">GitHub's website repository</a>. When I run
+a <code>make publish</code>, all contents get generated, and the <code>Makefile</code> tells
+the rest:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-makefile"><span style="font-weight: bold;">.ONESHELL</span>:
+<span style="font-weight: bold;">publish</span>: clean gen
+        pushd public_html
+        git init
+        git add .
+        git commit --no-gpg-sign -a -m <span style="font-style: italic;">"Publish static site"</span>
+        <span style="font-weight: bold;">git remote add origin git@github.com</span>:ereslibre/ereslibre.es
+        <span style="font-weight: bold;">git push -f origin master</span>:publish
+        popd
+
+<span style="font-weight: bold;">clean</span>:
+        rm -rf public_html
+</pre>
+</div>
+
+<p>
+Contents will be pushed to a branch in that repo called <code>publish</code>, so
+Netlify will publish the website right after.
+</p>
+</div>
+</div>
+
+<div id="outline-container-orgf81a3b3" class="outline-3">
+<h3 id="orgf81a3b3">Caveats found</h3>
+<div class="outline-text-3" id="text-orgf81a3b3">
+<p>
+Some, but I will mention the most relevant ones only.
+</p>
+</div>
+
+<div id="outline-container-orgfc27761" class="outline-4">
+<h4 id="orgfc27761">RSS with broken <code>&lt;pre&gt;</code> in <code>CDATA</code> sections</h4>
+<div class="outline-text-4" id="text-orgfc27761">
+<p>
+When creating the RSS <code>feed.org</code> file, <code>ox-rss</code> has a function that
+runs when the buffer has all the XML contents already written:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-elisp">(<span style="font-weight: bold;">defun</span> <span style="font-weight: bold;">org-rss-final-function</span> (contents backend info)
+  <span style="font-style: italic;">"Prettify the RSS output."</span>
+  (<span style="font-weight: bold;">with-temp-buffer</span>
+    (xml-mode)
+    (insert contents)
+    (indent-region (point-min) (point-max))
+    (buffer-substring-no-properties (point-min) (point-max))))
+</pre>
+</div>
+
+<p>
+Turns out, <code>(indent-region (point-min) (point-max))</code> will indent
+something like:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-html">&lt;<span style="font-weight: bold;">description</span>&gt;&lt;![CDATA[
+&lt;<span style="font-weight: bold;">pre</span> <span style="font-weight: bold; font-style: italic;">class</span>="example"&gt;
+require (
+  k8s.io/kubernetes v1.16.0-beta.1
+)
+&lt;/<span style="font-weight: bold;">pre</span>&gt;
+]]&gt;&lt;/<span style="font-weight: bold;">description</span>&gt;
+</pre>
+</div>
+
+<p>
+to something like:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-html">&lt;<span style="font-weight: bold;">description</span>&gt;&lt;![CDATA[
+&lt;<span style="font-weight: bold;">pre</span> <span style="font-weight: bold; font-style: italic;">class</span>="example"&gt;
+require (
+k8s.io/kubernetes v1.16.0-beta.1
+)
+&lt;/<span style="font-weight: bold;">pre</span>&gt;
+]]&gt;&lt;/<span style="font-weight: bold;">description</span>&gt;
+</pre>
+</div>
+
+<p>
+So, code examples wouldn't look that nice on RSS readers. I fixed that by
+defining my own final function that does not call <code>(indent-region)</code>,
+after all, I don't expect anyone to read the XML directly.
+</p>
+</div>
+</div>
+
+<div id="outline-container-org3f2f9ca" class="outline-4">
+<h4 id="org3f2f9ca">ox-publish insists in adding certain elements</h4>
+<div class="outline-text-4" id="text-org3f2f9ca">
+</div>
+
+<ul class="org-ul">
+<li><a id="orgc2ff94d"></a>The global template case<br />
+<div class="outline-text-5" id="text-orgc2ff94d">
+<p>
+Even when setting certain configurations like
+<code>:html-head-include-scripts</code> or <code>:html-head-include-default-style</code> to
+<code>nil</code>, I was still getting some template related elements that I could
+not remove with configuration settings, so I wrote my really simple
+<code>org-html-template</code>.
+</p>
+</div>
+</li>
+
+<li><a id="org5e73e55"></a>The <code>&lt;p&gt;</code> case<br />
+<div class="outline-text-5" id="text-org5e73e55">
+<p>
+When creating the <code>index.org</code> contents, I started with the approach of
+using <code>@@html:some-html@@[[https://www.ereslibre.es/blog/2019/09/some-org-file.html][A link]]@@html:other-html@@</code>, so I could
+deliberately use org's feature of linking other files, while having
+control of the HTML directly to create the expected structure.
+</p>
+
+<p>
+This didn't go well, as an extra <code>&lt;p&gt;</code> entity was printed at the
+beginning of the page, and moved the content a little. I could have
+fixed that with some CSS sorcery, but I didn't want extra output in my
+website either.
+</p>
+
+<p>
+Then, I took the path that is currently used, use <code>#+begin_export
+html</code> and generate the org links manually while still relying on org's
+linking:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-elisp">(org-export-string-as (format <span style="font-style: italic;">"[[file:%s][%s]]"</span> entry (org-publish-find-title entry project)) 'html t)
+</pre>
+</div>
+</div>
+</li>
+
+<li><a id="org00da05b"></a><code>&lt;title&gt;</code>'s inside <code>&lt;head&gt;</code> with non-optimal contents<br />
+<div class="outline-text-5" id="text-org00da05b">
+<p>
+I didn't fix this issue, what I did instead was to change the title of
+this post. It was previously named:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-org">#+title: <span style="font-weight: bold;">Building a personal website with ~org-mode~</span>
+</pre>
+</div>
+
+<p>
+and I had to rename it to:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-org">#+title: <span style="font-weight: bold;">Building a personal website with org-mode</span>
+</pre>
+</div>
+
+<p>
+The first <code>title</code> output in the generated HTML was:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-html">&lt;<span style="font-weight: bold;">head</span>&gt;
+  &lt;<span style="font-weight: bold;">title</span>&gt;Building a personal website with &lt;<span style="font-weight: bold;">code</span>&gt;org-mode&lt;/<span style="font-weight: bold;">code</span>&gt;&lt;/<span style="font-weight: bold;">title</span>&gt;
+&lt;/<span style="font-weight: bold;">head</span>&gt;
+</pre>
+</div>
+
+<p>
+I'm fairly sure this is a bug, but the question is then, what it
+should be:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-html">&lt;<span style="font-weight: bold;">head</span>&gt;
+  &lt;<span style="font-weight: bold;">title</span>&gt;<span style="font-weight: bold; text-decoration: underline;">Building a personal website with ~org-mode~</span>&lt;/<span style="font-weight: bold;">title</span>&gt;
+&lt;/<span style="font-weight: bold;">head</span>&gt;
+</pre>
+</div>
+
+<p>
+or
+</p>
+
+<div class="org-src-container">
+<pre class="src src-html">&lt;<span style="font-weight: bold;">head</span>&gt;
+  &lt;<span style="font-weight: bold;">title</span>&gt;<span style="font-weight: bold; text-decoration: underline;">Building a personal website with org-mode</span>&lt;/<span style="font-weight: bold;">title</span>&gt;
+&lt;/<span style="font-weight: bold;">head</span>&gt;
+</pre>
+</div>
+
+<p>
+Since the solution was really easy, and I was not completely sure I
+want headlines with different formatting, I ignored this problem and
+removed the special formatting from the title of the article.
+</p>
+</div>
+</li>
+</ul>
+</div>
+</div>
+
+<div id="outline-container-orge228128" class="outline-3">
+<h3 id="orge228128">Conclusion</h3>
+<div class="outline-text-3" id="text-orge228128">
+<p>
+I'm happy to have the same engine that drives my personal and work
+schedule driving my personal website as well.
+</p>
+
+<p>
+There are some static website generators supporting <code>org-mode</code> format,
+but they are yet another component, whereas <code>org-mode</code> has already
+support for this features.
+</p>
+
+<p>
+I have been thinking about doing this for quite some time, I only
+needed a small push; in my case it was <a href="http://duncan.codes/posts/2019-09-03-migrating-from-jekyll-to-org/index.html">Duncan's</a>.
+</p>
+
+<p>
+Reading and writing elisp has been fun. In fact, playing with <code>emacs</code>
+and <code>org-mode</code> APIs has been a quite enjoyable experience.
+</p>
+
+<p>
+Looks like the <a href="https://en.wikipedia.org/wiki/IKEA_effect">IKEA effect</a> at its best, you might think!
+</p>
+
+<hr />
+
+<p>
+<i class="fab fa-github"></i> GitHub repository: <a href="https://github.com/ereslibre/ereslibre.es">https://github.com/ereslibre/ereslibre.es</a>
+</p>
+
+<p>
+<i class="fas fa-link"></i> Old blog posts: <a href="https://oldwords.ereslibre.es">https://oldwords.ereslibre.es</a>
+</p>
+</div>
+</div>
+]]></description>
+</item>
+</channel>
+</rss>

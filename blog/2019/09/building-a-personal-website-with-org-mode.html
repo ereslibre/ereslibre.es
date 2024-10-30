@@ -1,0 +1,669 @@
+<!DOCTYPE html><html lang="en">
+                <head><!-- 2024-10-30 Wed 21:32 -->
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Building a personal website with org-mode</title>
+<meta name="generator" content="Org Mode" />
+<link rel="stylesheet" type="text/css" defer href="/assets/css/poole.css?h=d4c8bf3844a984ce26b99e74d3750776a70782e2" />
+<link rel="stylesheet" type="text/css" defer href="/assets/css/syntax.css?h=102da81e21102498e275df50a416d53add236a32" />
+<link rel="stylesheet" type="text/css" defer href="/assets/css/hyde.css?h=f619a950377712fd9b3e13662631545173d17b73" />
+<link rel="stylesheet" type="text/css" defer href="/assets/css/sidebar.css?h=d57642712e1d28963037b0140dfbb2612f66e961" />
+<link rel="stylesheet" type="text/css" defer href="/assets/css/global.css?h=991168e6967807cd5a82c4caf3d974edbd40ac45" />
+<link rel="stylesheet" type="text/css" defer href="/assets/css/fontawesome.css?h=19a185a2abbb0cdd1203a3aa0b8213b2417e7fb0" />
+<link rel="stylesheet" type="text/css" defer href="//fonts.googleapis.com/css?family=PT+Sans%3A400%2C400italic%2C700%7CAbril+Fatface" />
+</head>
+                <body><div class="content container">
+                                    <div class="post">
+                                      <h1 class="post-title">Building a personal website with org-mode</h1><span class="post-date">2019-09-06</span><p>
+It has been a while since I blogged for the last time. My blog was
+old, and I have been avoiding the redesign of my personal site for a very
+long time now.
+</p>
+
+<p>
+I don't plan to port old blog posts, so I'll <a href="https://oldwords.ereslibre.es">keep them as they are</a>, a
+raw and unverified port from a Wordpress installation to Jekyll.
+</p>
+
+<p>
+I wanted something simple, where I could write my thoughts as raw
+as possible. Luckily, I have been doing so for a long time using
+<code>emacs</code>'s <code>org-mode</code> for everything personal and work related. It has
+made a difference in the way I organize, and thought it would be a
+good idea to apply the very same principles to my website and blog. So
+here we are.
+</p>
+
+<p>
+I had some fun along the way with emacs lisp and I'll explain a little
+what I think are the most important points of my setup.
+</p>
+
+<div id="outline-container-org8fdb192" class="outline-2">
+<h2 id="org8fdb192">Structure</h2>
+<div class="outline-text-2" id="text-org8fdb192">
+</div>
+<div id="outline-container-org7432bc7" class="outline-3">
+<h3 id="org7432bc7">Notes</h3>
+<div class="outline-text-3" id="text-org7432bc7">
+<p>
+Notes are pages meant to be alive and changing over time. Annotations
+for my future self mainly; posted in the public just in case they help
+someone else. Undated.
+</p>
+
+<p>
+Notes live under <code>content/notes</code>.
+</p>
+</div>
+</div>
+
+<div id="outline-container-org5a9df7f" class="outline-3">
+<h3 id="org5a9df7f">Blog</h3>
+<div class="outline-text-3" id="text-org5a9df7f">
+<p>
+Exactly. Blog posts are what you think they are. Once published, not usually
+updated over time. Dated.
+</p>
+
+<p>
+Blog entries live under <code>content/blog/&lt;year&gt;/&lt;month&gt;/post-name.org</code>.
+</p>
+</div>
+</div>
+
+<div id="outline-container-org4e1449d" class="outline-3">
+<h3 id="org4e1449d">Front page</h3>
+<div class="outline-text-3" id="text-org4e1449d">
+<p>
+The front page is really simple: it contains a list of all the notes
+and blog entries.
+</p>
+
+<p>
+It is dynamically generated from the structure of the project.
+</p>
+</div>
+</div>
+
+<div id="outline-container-orge3d5ce8" class="outline-3">
+<h3 id="orge3d5ce8">RSS</h3>
+<div class="outline-text-3" id="text-orge3d5ce8">
+<p>
+RSS is an XML feed that only applies to blog posts.
+</p>
+
+<p>
+It is dynamically generated as well.
+</p>
+</div>
+</div>
+
+<div id="outline-container-orgf5015f5" class="outline-3">
+<h3 id="orgf5015f5">Arbitrary static pages</h3>
+<div class="outline-text-3" id="text-orgf5015f5">
+<p>
+The <a href="../../../contact.html">contact page</a> is a good example of an arbitrary static page.
+</p>
+
+<p>
+These pages are not included in the list of blog posts or notes.
+</p>
+</div>
+</div>
+</div>
+
+<div id="outline-container-org8577f69" class="outline-2">
+<h2 id="org8577f69">Generation</h2>
+<div class="outline-text-2" id="text-org8577f69">
+<p>
+The generation phase is triggered by calling to <code>emacs</code> in batch mode,
+like so:
+</p>
+
+<div class="org-example-container"><pre class="example">
+emacs -L $(PWD) --batch --script init.el
+</pre></div>
+
+<p>
+<code>init.el</code> is a simple initialization script that will load all elisp
+files inside <code>config</code>. It will then call to <code>(org-publish-all t)</code>.
+</p>
+</div>
+
+<div id="outline-container-org20bf242" class="outline-3">
+<h3 id="org20bf242">org-publish project alist</h3>
+<div class="outline-text-3" id="text-org20bf242">
+<p>
+Defined in <code>config/default.el</code> along with some customization functions.
+</p>
+</div>
+
+<div id="outline-container-org2224e50" class="outline-4">
+<h4 id="org2224e50">website-content</h4>
+<div class="outline-text-4" id="text-org2224e50">
+<p>
+Published using <code>org-html-publish-to-html</code>, will generate the HTML
+files out of org files.
+</p>
+</div>
+
+<div id="outline-container-orge211e8e" class="outline-5">
+<h5 id="orge211e8e">Sitemap generation: <code>content/index.org</code></h5>
+<div class="outline-text-5" id="text-orge211e8e">
+<p>
+Taking advantage of the sitemap functionality, <code>content/index.org</code>
+and the <code>content/blog/feed.org</code> files will be automatically generated.
+The <code>sitemap-function</code> of the <code>website-content</code> project is set to
+<code>ereslibre/sitemap</code>. It looks like:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-elisp">(<span style="font-weight: bold;">defun</span> <span style="font-weight: bold;">ereslibre/sitemap</span> (title list)
+  (<span style="font-weight: bold;">progn</span> (ereslibre/generate-org-rss-feed list)
+         (format <span style="font-style: italic;">"#+options: title:nil\n</span>
+<span style="font-style: italic;">                  #+begin_export html\n</span>
+<span style="font-style: italic;">                  &lt;div class=\"content container front-container\"&gt;</span>
+<span style="font-style: italic;">                    &lt;div class=\"side-by-side\"&gt;</span>
+<span style="font-style: italic;">                      &lt;h1 class=\"post-title\"&gt;Notes&lt;/h1&gt;&lt;hr/&gt;</span>
+<span style="font-style: italic;">                      %s</span>
+<span style="font-style: italic;">                    &lt;/div&gt;</span>
+<span style="font-style: italic;">                    &lt;div class=\"side-by-side\"&gt;</span>
+<span style="font-style: italic;">                      &lt;h1 class=\"post-title\"&gt;Blog&lt;/h1&gt;&lt;hr/&gt;</span>
+<span style="font-style: italic;">                      %s</span>
+<span style="font-style: italic;">                    &lt;/div&gt;</span>
+<span style="font-style: italic;">                  &lt;/div&gt;\n</span>
+<span style="font-style: italic;">                  #+end_export"</span>
+                 (ereslibre/all-entries 'notes list)
+                 (ereslibre/all-entries 'blog list))))
+</pre>
+</div>
+
+<p>
+Writing raw HTML here helps in getting the desired HTML layout easier.
+This will be automatically generated anyway, and I don't have to
+fiddle with this anymore &#x2013; I hope!
+</p>
+
+<p>
+Take the first <code>progn</code> call to <code>ereslibre/generate-org-rss-feed</code> into
+account, we'll check what it does later.
+</p>
+
+<p>
+Each sitemap entry is formatted using <code>ereslibre/sitemap-format-entry</code>,
+creating the link to the given entry:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-elisp">(<span style="font-weight: bold;">defun</span> <span style="font-weight: bold;">ereslibre/sitemap-format-entry</span> (entry style project)
+  (<span style="font-weight: bold;">let</span> ((date (ereslibre/org-publish-find-explicit-date entry project)))
+    `(<span style="font-weight: bold;">:content</span> ,(format <span style="font-style: italic;">"&lt;div class=\"post-preview\"&gt;</span>
+<span style="font-style: italic;">                            &lt;h2 class=\"post-title\"&gt;%s&lt;/h2&gt;</span>
+<span style="font-style: italic;">                            &lt;span class=\"post-date\"&gt;%s&lt;/span&gt;</span>
+<span style="font-style: italic;">                         &lt;/div&gt;"</span>
+                        (org-export-string-as (format <span style="font-style: italic;">"[[file:%s][%s]]"</span> entry (org-publish-find-title entry project)) 'html t)
+                        (<span style="font-weight: bold;">if</span> date
+                            (format-time-string <span style="font-style: italic;">"%Y-%m-%d"</span> date)
+                          <span style="font-style: italic;">"&amp;nbsp;"</span>))
+      <span style="font-weight: bold;">:entry</span> ,entry)))
+</pre>
+</div>
+</div>
+</div>
+
+<div id="outline-container-org90c72c9" class="outline-5">
+<h5 id="org90c72c9">Feed RSS generation: <code>content/blog/feed.org</code></h5>
+<div class="outline-text-5" id="text-org90c72c9">
+<p>
+<code>ox-rss</code> expects a single file with all blog posts, but this is not
+how my set up works, so the <code>feed.org</code> file will be automatically
+generated &#x2013; this has some caveats, though.
+</p>
+
+<p>
+The contents <code>ox-rss</code> expects are of the form:
+</p>
+
+<div class="org-src-container"><pre class="example">
+#+title: ereslibre.es
+
+* [[file:year/month/some-post.org][Some post]]
+ :PROPERTIES:
+ :RSS_PERMALINK: blog/year/month/some-post.html
+ :PUBDATE:  2019-09-06
+ :ID:       0b382fe7-f943-4997-8568-28179abe8f23
+ :END:
+Blog post contents, or description.
+
+* [[file:year/month/some-other-post.org][Some other post]]
+ :PROPERTIES:
+ :RSS_PERMALINK: blog/year/month/some-other-post.html
+ :PUBDATE:  2019-09-06
+ :ID:       d0d46dcf-ae23-42e5-b279-b17956b3d82a
+ :END:
+Blog post contents, or description.
+</pre></div>
+
+<p>
+The call on <code>ereslibre/sitemap</code> to <code>ereslibre/generate-org-rss-feed</code>
+is what generates the RSS feed contents. <code>content/blog/feed.org</code> file
+will be created, listing the contents of all blog posts.
+</p>
+
+<div class="org-src-container">
+<pre class="src src-elisp">(<span style="font-weight: bold;">defun</span> <span style="font-weight: bold;">ereslibre/generate-org-rss-feed</span> (list)
+  (<span style="font-weight: bold;">let</span> ((blog-entries (seq-filter (apply-partially #'ereslibre/is-entry-of-type 'blog) (cdr list))))
+    (<span style="font-weight: bold;">let*</span> ((rss-contents (mapconcat #'ereslibre/rss-entry blog-entries <span style="font-style: italic;">"\n\n"</span>))
+           (full-rss-contents (concat <span style="font-style: italic;">"#+title: ereslibre.es\n\n"</span> rss-contents)))
+      (write-region full-rss-contents nil <span style="font-style: italic;">"./content/blog/feed.org"</span>))))
+</pre>
+</div>
+
+<p>
+The <code>ereslibre/rss-entry</code> function looks like:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-elisp">(<span style="font-weight: bold;">defun</span> <span style="font-weight: bold;">ereslibre/rss-entry</span> (entry)
+  (<span style="font-weight: bold;">let*</span> ((entry (plist-get (car entry) <span style="font-weight: bold;">:entry</span>))
+         (title (org-publish-find-title entry (ereslibre/website-project)))
+         (date (org-publish-find-date entry (ereslibre/website-project)))
+         (link (concat (file-name-sans-extension entry) <span style="font-style: italic;">".html"</span>))
+         (source-file (concat (file-name-as-directory <span style="font-style: italic;">"content"</span>) entry))
+         (source-file-dir (file-name-directory source-file))
+         (home-url-prefix (plist-get (cdr (ereslibre/rss-project)) <span style="font-weight: bold;">:html-link-home</span>))
+         (contents (<span style="font-weight: bold;">with-temp-buffer</span>
+                     (org-mode)
+                     (insert-file-contents source-file)
+                     (beginning-of-buffer)
+                     <span style="font-weight: bold; font-style: italic;">;; </span><span style="font-weight: bold; font-style: italic;">demote all headlines</span>
+                     (<span style="font-weight: bold;">save-excursion</span>
+                       (<span style="font-weight: bold;">while</span> (re-search-forward <span style="font-style: italic;">"^\\*"</span> nil t)
+                         (replace-match <span style="font-style: italic;">"**"</span>)))
+                     <span style="font-weight: bold; font-style: italic;">;; </span><span style="font-weight: bold; font-style: italic;">remove certain attributes from inserted org file</span>
+                     (<span style="font-weight: bold;">save-excursion</span>
+                       (<span style="font-weight: bold;">while</span> (re-search-forward <span style="font-style: italic;">"^#\\+</span><span style="font-weight: bold; font-style: italic;">\\</span><span style="font-weight: bold; font-style: italic;">(</span><span style="font-style: italic;">title</span><span style="font-weight: bold; font-style: italic;">\\</span><span style="font-weight: bold; font-style: italic;">|</span><span style="font-style: italic;">date</span><span style="font-weight: bold; font-style: italic;">\\</span><span style="font-weight: bold; font-style: italic;">)</span><span style="font-style: italic;">.*"</span> nil t)
+                         (replace-match <span style="font-style: italic;">""</span>)))
+                     <span style="font-weight: bold; font-style: italic;">;; </span><span style="font-weight: bold; font-style: italic;">transcode embedded links to files -- e.g. expand relative paths</span>
+                     (<span style="font-weight: bold;">save-excursion</span>
+                       (<span style="font-weight: bold;">while</span> (re-search-forward <span style="font-style: italic;">"\\[file:</span><span style="font-weight: bold; font-style: italic;">\\</span><span style="font-weight: bold; font-style: italic;">(</span><span style="font-style: italic;">[</span><span style="font-style: italic;">^</span><span style="font-style: italic;">]]+</span><span style="font-weight: bold; font-style: italic;">\\</span><span style="font-weight: bold; font-style: italic;">)</span><span style="font-style: italic;">"</span> nil t)
+                         (<span style="font-weight: bold;">let*</span> ((match (match-string 1))
+                                (element (<span style="font-weight: bold;">save-match-data</span> (org-element-at-point))))
+                           (<span style="font-weight: bold;">when</span> (not (<span style="font-weight: bold;">or</span> (eq (org-element-type element) 'example-block)
+                                          (eq (org-element-type element) 'src-block)))
+                             (replace-match
+                              (concat <span style="font-style: italic;">"["</span> home-url-prefix
+                                      (file-name-sans-extension
+                                       (file-relative-name
+                                        (expand-file-name match source-file-dir)
+                                        <span style="font-style: italic;">"content"</span>))
+                                      <span style="font-style: italic;">".html"</span>))))))
+                     (buffer-string))))
+    (<span style="font-weight: bold;">with-temp-buffer</span>
+      (insert (format <span style="font-style: italic;">"* [[file:%s][%s]]\n"</span> (ereslibre/path-relative-from-to-relative-to entry <span style="font-style: italic;">"content"</span> <span style="font-style: italic;">"content/blog"</span>) title))
+      (org-set-property <span style="font-style: italic;">"RSS_PERMALINK"</span> link)
+      (org-set-property <span style="font-style: italic;">"PUBDATE"</span> (format-time-string <span style="font-style: italic;">"%Y-%m-%d"</span> date))
+      (insert contents)
+      (buffer-string))))
+</pre>
+</div>
+
+<p>
+It is worth dissecting what tasks it performs:
+</p>
+
+<ul class="org-ul">
+<li>Insert the contents of the target org file inside a temporary buffer</li>
+<li>Demote all headlines from the inserted content</li>
+<li>Transcode embedded links to other relative files. Since we are copying
+and pasting the contents of a file that is in other subdirectory
+(<code>content/blog/year/month</code>), all its relative references to other
+files will be broken when writing the <code>content/blog/feed.org</code> file
+<ul class="org-ul">
+<li><code>ereslibre/path-relative-from-to-relative-to</code> rewrites a relative
+path from the original directory, to a relative path from the
+target directory. This is used for the toplevel entries in <code>feed.org</code>
+and for correctness, since it's not really used when publishing &#x2013;
+as far as I can tell</li>
+<li>RSS readers won't know how to handle relative links like
+<code>../../../contact.html</code>, so all <code>[file:some-file]</code> occurrences
+will be transcoded into a
+<code>[https://html-link-home/some-path/some-file]</code>, only if they are
+not in <code>src</code> or <code>example</code> blocks</li>
+</ul></li>
+<li>Write the entry itself
+<ul class="org-ul">
+<li>Insert the link to the blog post org file</li>
+<li>Add <code>RSS_PERMALINK</code> and <code>PUBDATE</code> org properties</li>
+<li>Insert the modified contents of the blog post</li>
+</ul></li>
+</ul>
+</div>
+</div>
+</div>
+
+<div id="outline-container-org2039e9f" class="outline-4">
+<h4 id="org2039e9f">website-assets</h4>
+<div class="outline-text-4" id="text-org2039e9f">
+<p>
+Published using <code>org-publish-attachment</code>. This will copy all assets
+from <code>assets</code> inside <code>public_html/assets</code>. These are strictly template
+related assets.
+</p>
+</div>
+</div>
+
+<div id="outline-container-org322c4ec" class="outline-4">
+<h4 id="org322c4ec">website-content-assets</h4>
+<div class="outline-text-4" id="text-org322c4ec">
+<p>
+Published using <code>org-publish-attachment</code>. This will copy all assets
+from <code>content</code> to <code>public_html</code>. These are assets related to blog
+posts or pages themselves.
+</p>
+</div>
+</div>
+
+<div id="outline-container-org77c8c25" class="outline-4">
+<h4 id="org77c8c25">website-rss</h4>
+<div class="outline-text-4" id="text-org77c8c25">
+<p>
+RSS generation using the auto generated <code>content/blog/feed.org</code> file,
+that was created during the <code>website-content</code> publishing. It will only
+generate a target <code>public_html/blog/feed.xml</code> with a list of all the
+available blog posts.
+</p>
+</div>
+</div>
+</div>
+</div>
+
+<div id="outline-container-org2115a2e" class="outline-2">
+<h2 id="org2115a2e">Publishing</h2>
+<div class="outline-text-2" id="text-org2115a2e">
+<p>
+I wanted something really minimal. I migrated my whole website to
+<a href="https://www.netlify.com">Netlify</a> and connected it to my <a href="https://github.com/ereslibre/ereslibre.es">GitHub's website repository</a>. When I run
+a <code>make publish</code>, all contents get generated, and the <code>Makefile</code> tells
+the rest:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-makefile"><span style="font-weight: bold;">.ONESHELL</span>:
+<span style="font-weight: bold;">publish</span>: clean gen
+        pushd public_html
+        git init
+        git add .
+        git commit --no-gpg-sign -a -m <span style="font-style: italic;">"Publish static site"</span>
+        <span style="font-weight: bold;">git remote add origin git@github.com</span>:ereslibre/ereslibre.es
+        <span style="font-weight: bold;">git push -f origin master</span>:publish
+        popd
+
+<span style="font-weight: bold;">clean</span>:
+        rm -rf public_html
+</pre>
+</div>
+
+<p>
+Contents will be pushed to a branch in that repo called <code>publish</code>, so
+Netlify will publish the website right after.
+</p>
+</div>
+</div>
+
+<div id="outline-container-orgf0d7224" class="outline-2">
+<h2 id="orgf0d7224">Caveats found</h2>
+<div class="outline-text-2" id="text-orgf0d7224">
+<p>
+Some, but I will mention the most relevant ones only.
+</p>
+</div>
+
+<div id="outline-container-org35f0def" class="outline-3">
+<h3 id="org35f0def">RSS with broken <code>&lt;pre&gt;</code> in <code>CDATA</code> sections</h3>
+<div class="outline-text-3" id="text-org35f0def">
+<p>
+When creating the RSS <code>feed.org</code> file, <code>ox-rss</code> has a function that
+runs when the buffer has all the XML contents already written:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-elisp">(<span style="font-weight: bold;">defun</span> <span style="font-weight: bold;">org-rss-final-function</span> (contents backend info)
+  <span style="font-style: italic;">"Prettify the RSS output."</span>
+  (<span style="font-weight: bold;">with-temp-buffer</span>
+    (xml-mode)
+    (insert contents)
+    (indent-region (point-min) (point-max))
+    (buffer-substring-no-properties (point-min) (point-max))))
+</pre>
+</div>
+
+<p>
+Turns out, <code>(indent-region (point-min) (point-max))</code> will indent
+something like:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-html">&lt;<span style="font-weight: bold;">description</span>&gt;&lt;![CDATA[
+&lt;<span style="font-weight: bold;">pre</span> <span style="font-weight: bold; font-style: italic;">class</span>="example"&gt;
+require (
+  k8s.io/kubernetes v1.16.0-beta.1
+)
+&lt;/<span style="font-weight: bold;">pre</span>&gt;
+]]&gt;&lt;/<span style="font-weight: bold;">description</span>&gt;
+</pre>
+</div>
+
+<p>
+to something like:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-html">&lt;<span style="font-weight: bold;">description</span>&gt;&lt;![CDATA[
+&lt;<span style="font-weight: bold;">pre</span> <span style="font-weight: bold; font-style: italic;">class</span>="example"&gt;
+require (
+k8s.io/kubernetes v1.16.0-beta.1
+)
+&lt;/<span style="font-weight: bold;">pre</span>&gt;
+]]&gt;&lt;/<span style="font-weight: bold;">description</span>&gt;
+</pre>
+</div>
+
+<p>
+So, code examples wouldn't look that nice on RSS readers. I fixed that by
+defining my own final function that does not call <code>(indent-region)</code>,
+after all, I don't expect anyone to read the XML directly.
+</p>
+</div>
+</div>
+
+<div id="outline-container-orge81004e" class="outline-3">
+<h3 id="orge81004e">ox-publish insists in adding certain elements</h3>
+<div class="outline-text-3" id="text-orge81004e">
+</div>
+<div id="outline-container-org9a385bf" class="outline-4">
+<h4 id="org9a385bf">The global template case</h4>
+<div class="outline-text-4" id="text-org9a385bf">
+<p>
+Even when setting certain configurations like
+<code>:html-head-include-scripts</code> or <code>:html-head-include-default-style</code> to
+<code>nil</code>, I was still getting some template related elements that I could
+not remove with configuration settings, so I wrote my really simple
+<code>org-html-template</code>.
+</p>
+</div>
+</div>
+
+<div id="outline-container-org3bb15eb" class="outline-4">
+<h4 id="org3bb15eb">The <code>&lt;p&gt;</code> case</h4>
+<div class="outline-text-4" id="text-org3bb15eb">
+<p>
+When creating the <code>index.org</code> contents, I started with the approach of
+using <code>@@html:some-html@@[[file:some-org-file.org][A link]]@@html:other-html@@</code>, so I could
+deliberately use org's feature of linking other files, while having
+control of the HTML directly to create the expected structure.
+</p>
+
+<p>
+This didn't go well, as an extra <code>&lt;p&gt;</code> entity was printed at the
+beginning of the page, and moved the content a little. I could have
+fixed that with some CSS sorcery, but I didn't want extra output in my
+website either.
+</p>
+
+<p>
+Then, I took the path that is currently used, use <code>#+begin_export
+html</code> and generate the org links manually while still relying on org's
+linking:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-elisp">(org-export-string-as (format <span style="font-style: italic;">"[[file:%s][%s]]"</span> entry (org-publish-find-title entry project)) 'html t)
+</pre>
+</div>
+</div>
+</div>
+
+<div id="outline-container-org3e30a95" class="outline-4">
+<h4 id="org3e30a95"><code>&lt;title&gt;</code>'s inside <code>&lt;head&gt;</code> with non-optimal contents</h4>
+<div class="outline-text-4" id="text-org3e30a95">
+<p>
+I didn't fix this issue, what I did instead was to change the title of
+this post. It was previously named:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-org">#+title: <span style="font-weight: bold;">Building a personal website with ~org-mode~</span>
+</pre>
+</div>
+
+<p>
+and I had to rename it to:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-org">#+title: <span style="font-weight: bold;">Building a personal website with org-mode</span>
+</pre>
+</div>
+
+<p>
+The first <code>title</code> output in the generated HTML was:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-html">&lt;<span style="font-weight: bold;">head</span>&gt;
+  &lt;<span style="font-weight: bold;">title</span>&gt;Building a personal website with &lt;<span style="font-weight: bold;">code</span>&gt;org-mode&lt;/<span style="font-weight: bold;">code</span>&gt;&lt;/<span style="font-weight: bold;">title</span>&gt;
+&lt;/<span style="font-weight: bold;">head</span>&gt;
+</pre>
+</div>
+
+<p>
+I'm fairly sure this is a bug, but the question is then, what it
+should be:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-html">&lt;<span style="font-weight: bold;">head</span>&gt;
+  &lt;<span style="font-weight: bold;">title</span>&gt;<span style="font-weight: bold; text-decoration: underline;">Building a personal website with ~org-mode~</span>&lt;/<span style="font-weight: bold;">title</span>&gt;
+&lt;/<span style="font-weight: bold;">head</span>&gt;
+</pre>
+</div>
+
+<p>
+or
+</p>
+
+<div class="org-src-container">
+<pre class="src src-html">&lt;<span style="font-weight: bold;">head</span>&gt;
+  &lt;<span style="font-weight: bold;">title</span>&gt;<span style="font-weight: bold; text-decoration: underline;">Building a personal website with org-mode</span>&lt;/<span style="font-weight: bold;">title</span>&gt;
+&lt;/<span style="font-weight: bold;">head</span>&gt;
+</pre>
+</div>
+
+<p>
+Since the solution was really easy, and I was not completely sure I
+want headlines with different formatting, I ignored this problem and
+removed the special formatting from the title of the article.
+</p>
+</div>
+</div>
+</div>
+</div>
+
+<div id="outline-container-org0f086df" class="outline-2">
+<h2 id="org0f086df">Conclusion</h2>
+<div class="outline-text-2" id="text-org0f086df">
+<p>
+I'm happy to have the same engine that drives my personal and work
+schedule driving my personal website as well.
+</p>
+
+<p>
+There are some static website generators supporting <code>org-mode</code> format,
+but they are yet another component, whereas <code>org-mode</code> has already
+support for this features.
+</p>
+
+<p>
+I have been thinking about doing this for quite some time, I only
+needed a small push; in my case it was <a href="http://duncan.codes/posts/2019-09-03-migrating-from-jekyll-to-org/index.html">Duncan's</a>.
+</p>
+
+<p>
+Reading and writing elisp has been fun. In fact, playing with <code>emacs</code>
+and <code>org-mode</code> APIs has been a quite enjoyable experience.
+</p>
+
+<p>
+Looks like the <a href="https://en.wikipedia.org/wiki/IKEA_effect">IKEA effect</a> at its best, you might think!
+</p>
+
+<hr>
+
+<p>
+<i class="fab fa-github"></i> GitHub repository: <a href="https://github.com/ereslibre/ereslibre.es">https://github.com/ereslibre/ereslibre.es</a>
+</p>
+
+<p>
+<i class="fas fa-link"></i> Old blog posts: <a href="https://oldwords.ereslibre.es">https://oldwords.ereslibre.es</a>
+</p>
+</div>
+</div>
+  </div><!-- post -->
+   </div><!-- content --><div class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <p class="lead"><img id="avatar" alt="My avatar" src="//s.gravatar.com/avatar/bdc4bd9b9b18388588ed2273adaee8a6?s=128" /></p>
+      <p class="lead">Libre Software lover. Hacker.</p>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="sidebar-nav-item">
+        <i class="fas fa-home"></i><a href="/">Home</a>
+      </div>
+      <div class="sidebar-nav-item">
+        <i class="fas fa-envelope"></i><a href="/contact.html">Contact</a>
+      </div>
+      <div class="sidebar-nav-item">
+        <i class="fas fa-rss-square"></i><a href="/blog/feed.xml">RSS</a>
+      </div>
+    </nav>
+    <nav class="sidebar-nav">
+      <div class="sidebar-nav-item">
+        <i class="fab fa-github"></i><a href="https://github.com/ereslibre">GitHub</a>
+      </div>
+      <div class="sidebar-nav-item">
+        <i class="fab fa-mastodon"></i><a rel="me" href="https://hachyderm.io/@ereslibre">Mastodon</a>
+      </div>
+      <div class="sidebar-nav-item">
+        <i class="fab fa-keybase"></i><a href="https://keybase.io/ereslibre">Keybase</a>
+      </div>
+      <div class="sidebar-nav-item">
+        <i class="fab fa-linkedin"></i><a href="https://linkedin.com/in/rafaelfernandezlopez">LinkedIn</a>
+      </div>
+    </nav>
+    <p><a href="https://github.com/ereslibre/ereslibre.es">Built</a> with <a href="https://orgmode.org/">org-mode</a>.</p>
+  </div>
+</div>
+</body>
+              </html>
